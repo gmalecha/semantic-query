@@ -1,0 +1,4 @@
+-R ../coq-ext-lib ExtLib
+-R . SemanticQuery
+Tables.v
+Query.v
