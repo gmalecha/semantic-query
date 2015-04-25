@@ -1,3 +1,6 @@
 -R ../coq-ext-lib ExtLib
 -R . SemanticQuery
 Tables.v
+RecordTableaux.v
+ShallowTableaux.v
+InductiveTableaux.v
