@@ -95,10 +95,15 @@ Module record.
   Section with_tables.
     Variable tbls : list row_type.
 
-    Record tableaux  :=
+    Record tableaux :=
     { types : list row_type
     ; binds : hlist (fun x => member x tbls) types
     ; filter : list { T : dec_type & expr T types & expr T types }
+    }.
+
+    Record query (t : list dec_type) : Type :=
+    { tabl : tableaux
+    ; ret  : hlist (fun t => expr t tabl.(types)) t
     }.
 
     Fixpoint join {T U V : Type} (f : T -> U -> V) (ts : list T) (us : list U) : list V :=
@@ -140,6 +145,28 @@ Module record.
       let keep := filterD t.(filter) in
       fun tbls => List.filter keep (all tbls).
 
+    Section hlist_build2.
+      Context {T V : Type} {U : T -> Type}.
+      Context (f : forall t, V -> U t).
+
+      Fixpoint hlist_build2 (ts : list T) (vs : list V) : option (hlist U ts) :=
+        match ts , vs with
+        | t :: ts , v :: vs =>
+          match hlist_build2 ts vs with
+          | None => None
+          | Some hs => Some (Hcons (f t v) hs)
+          end
+        | nil , nil => Some Hnil
+        | _ , _ => None
+        end.
+    End hlist_build2.
+
+    Definition retD {ts ts'} (rt : hlist (fun t => expr t ts) ts') : hlist row ts -> row ts' :=
+      fun vars => hlist_map (fun t e => exprD e vars) rt.
+
+    Definition queryD ts (q : query ts) : hlist table tbls -> list (hlist type ts) :=
+      fun tbls => List.map (retD q.(ret)) (tableauxD q.(tabl) tbls).
+
     Fixpoint subst_expr {vars vars'} (f :forall {x}, member x vars -> member x vars') (T : _)
              (e : expr T vars) {struct e} : expr T vars' :=
       match e with
@@ -156,22 +183,23 @@ Module record.
       end.
 
     (*
-    A homomorphism h : q1 -> q2 maps the for-bound variables of q1 to the for-bound variables of q2 such that
-    1) x in X in q1 implies h(x) in X in q2
-    2) q1 |- p = q in q1 implies q2 |- h(p) = h(q)
-    3) return E in q1 and return E' in q2 implies q2 |- h(E) = E'
+    A homomorphism h : t1 -> t2 maps the for-bound variables of t1 to the for-bound variables of t2 such that
+    1) x in X in t1 implies h(x) in X in t2
+    2) t1 |- p = q in t1 implies t2 |- h(p) = h(q)
+    3) return E in t1 and return E' in t2 implies t2 |- h(E) = E'
     *)
-    Definition homomorphism (q1 q2 : tableaux) (pf : q1.(types) = q2.(types)) : Type :=
-      { h : forall x, member x q1.(types) -> member x q2.(types) (** 1 **)
-      & forall x, filterD (map (subst_test (subst_expr h)) q1.(filter)) x = filterD q2.(filter) x (** 2? **)
+    Definition tableaux_homomorphism (t1 t2 : tableaux) : Type :=
+      { h : forall x, member x t1.(types) -> member x t2.(types) (** 1 **)
+      & forall x, filterD (map (subst_test (subst_expr h)) t1.(filter)) x = filterD t2.(filter) x (** 2? **)
       }.
-    (** TODO(gmalecha): I'm not entirely sure what 2) means.
-     ** The basic definition seems to be a statement about substitutions.
-     ** Is it the case that you can not change the projection functions?
-     **)
-    (** TODO(gmalecha): 3) seems meaningless for tableaux. This seems to suggest that a homomorphism only makes
-     ** sense for queries?
-     **)
+
+    Definition query_homomorphism ts (q1 q2 : query ts) : Type :=
+      { th : tableaux_homomorphism q1.(tabl) q2.(tabl)
+      & forall r, filterD (map (subst_test (subst_expr (projT1 th))) q1.(tabl).(filter)) r = true ->
+                  retD (hlist_map (fun T (x : expr T (types q1.(tabl))) => subst_expr (projT1 th) _ x) q1.(ret)) r =
+                  retD q2.(ret) r
+      }.
+
   End with_tables.
 
 End record.
