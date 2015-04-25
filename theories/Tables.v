@@ -200,6 +200,32 @@ Module record.
                   retD q2.(ret) r
       }.
 
+    Definition list_set_subset {T} (a b : list T) : Prop :=
+      forall x, In x a -> In x b.
+
+    Definition list_set_equiv {T} (a b : list T) : Prop :=
+      list_set_subset a b /\ list_set_subset b a.
+
+    Lemma homomorphism_subset ts
+    : forall q1 q2,
+        @query_homomorphism ts q1 q2 ->
+        forall tbls,
+          list_set_subset (queryD q1 tbls) (queryD q2 tbls).
+    Proof.
+      unfold queryD, tableauxD.
+      admit.
+    Qed.
+
+    Theorem bihomomorphism_equal ts
+    : forall q1 q2,
+        @query_homomorphism ts q1 q2 ->
+        @query_homomorphism ts q2 q1 ->
+        forall tbls,
+          list_set_equiv (queryD q1 tbls) (queryD q2 tbls).
+    Proof.
+      unfold list_set_equiv. intros; eauto using homomorphism_subset.
+    Qed.
+
   End with_tables.
 
 End record.
