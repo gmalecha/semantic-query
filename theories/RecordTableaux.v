@@ -311,19 +311,22 @@ Section with_tables.
    **)
   Definition embedded_dependencyD (ed : embedded_dependency)
   : hlist table tbls -> Prop :=
+    let front :=
+        tableauxD {| types := ed.(front_types)
+                   ; binds := ed.(front_binds)
+                   ; filter := ed.(front_filter)
+                   |}
+    in
+    let back :=
+        let all := bindD ed.(back_binds) in
+        let keep := filterD ed.(back_filter) in
+        fun tbls base => List.filter keep (List.map (fun x => hlist_app base x) (all tbls))
+    in
     fun tbls =>
-      let front :=
-          tableauxD {| types := ed.(front_types)
-                     ; binds := ed.(front_binds)
-                     ; filter := ed.(front_filter)
-                     |} tbls
-      in
       forall res,
-        In res front ->
+        In res (front tbls) ->
         exists val,
-          In val (let all := bindD ed.(back_binds) in
-                  let keep := filterD ed.(back_filter) in
-                  List.filter keep (List.map (fun x => hlist_app res x) (all tbls))).
+          In val (back tbls res).
 
   Definition ed_front (ed : embedded_dependency) : tableaux :=
   {| types := ed.(front_types)
