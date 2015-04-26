@@ -8,55 +8,27 @@ Set Strict Implicit.
 Section with_tables.
   Variable tbls : list row_type.
 
+  Definition binds_type : list row_type -> Type :=
+    hlist (fun x => member x tbls).
+
+  Definition filter_type (vars : list row_type) : Type :=
+    list { T : dec_type & expr T vars & expr T vars }.
+
+  Definition ret_type (vars : list row_type) (result : list dec_type) : Type :=
+    hlist (fun t => expr t vars) result.
+
   Record tableaux :=
   { types : list row_type
-  ; binds : hlist (fun x => member x tbls) types
-  ; filter : list { T : dec_type & expr T types & expr T types }
+  ; binds : binds_type types
+  ; filter : filter_type types
   }.
 
   Record query (t : list dec_type) : Type :=
   { tabl : tableaux
-  ; ret  : hlist (fun t => expr t tabl.(types)) t
+  ; ret  : ret_type tabl.(types) t
   }.
 
-  Fixpoint join {T U V : Type} (f : T -> U -> V) (ts : list T) (us : list U) : list V :=
-    match ts , us with
-    | nil , _ => nil
-    | _ , nil => nil
-    | t :: ts , u :: us => f t u :: join f ts us
-    end.
-
-  Fixpoint cross {T U V : Type} (f : T -> U -> V) (ts : list T) (us : list U) : list V :=
-    match ts with
-    | nil => nil
-    | t :: ts => List.map (f t) us ++ cross f ts us
-    end.
-
-
-  Lemma In_cross : forall {T U V} (f : T -> U -> V) us ts,
-      forall x,
-        In x (cross f ts us) <->
-        exists t u,
-          In t ts /\ In u us /\ x = f t u.
-  Proof.
-    induction ts; simpl; intros.
-    { split.
-      { inversion 1. }
-      { intros.
-        forward_reason. assumption. } }
-    { rewrite List.in_app_iff.
-      rewrite IHts; clear IHts.
-      rewrite in_map_iff.
-      split; intros; forward_reason.
-      { destruct H; forward_reason.
-        { subst. do 2 eexists; eauto. }
-        { do 2 eexists; eauto. } }
-      { destruct H; subst.
-        { left; eauto. }
-        { right. eauto. } } }
-  Qed.
-
-  Fixpoint bindD {ts : list row_type} (names : hlist (fun x => member x tbls) ts)
+  Fixpoint bindD {ts : list row_type} (names : binds_type ts)
     : hlist table tbls -> list (hlist row ts) :=
     match names in hlist _ ts return hlist table tbls -> list (hlist row ts) with
     | Hnil => fun _ => Hnil :: nil
@@ -69,7 +41,7 @@ Section with_tables.
     | Proj _ v c => fun vars => hlist_get c (hlist_get v vars)
     end.
 
-  Fixpoint filterD {ts : list row_type} (f : list { T : dec_type & expr T ts & expr T ts })
+  Fixpoint filterD {ts : list row_type} (f : filter_type ts)
     : hlist row ts -> bool :=
     match f with
     | nil => fun _ => true
@@ -104,7 +76,7 @@ Section with_tables.
       end.
   End hlist_build2.
 
-  Definition retD {ts ts'} (rt : hlist (fun t => expr t ts) ts') : hlist row ts -> row ts' :=
+  Definition retD {ts ts'} (rt : ret_type ts ts') : hlist row ts -> row ts' :=
     fun vars => hlist_map (fun t e => exprD e vars) rt.
 
   Definition queryD ts (q : query ts) : hlist table tbls -> list (hlist type ts) :=
@@ -322,5 +294,55 @@ Section with_tables.
   Proof.
     unfold list_set_equiv. intros; eauto using homomorphism_subset.
   Qed.
+
+  (** Embedded Dependencies **)
+  (***************************)
+  Record embedded_dependency :=
+  { front_types : list row_type
+  ; front_binds : binds_type front_types
+  ; front_filter : filter_type front_types
+  ; back_types : list row_type
+  ; back_binds : binds_type back_types
+  ; back_filter : filter_type (front_types ++ back_types)
+  }.
+
+  (** TODO(gmalecha): I should make sure that I am being consistent about
+   ** the order of binders
+   **)
+  Definition embedded_dependencyD (ed : embedded_dependency)
+  : hlist table tbls -> Prop :=
+    fun tbls =>
+      let front :=
+          tableauxD {| types := ed.(front_types)
+                     ; binds := ed.(front_binds)
+                     ; filter := ed.(front_filter)
+                     |} tbls
+      in
+      forall res,
+        In res front ->
+        exists val,
+          In val (let all := bindD ed.(back_binds) in
+                  let keep := filterD ed.(back_filter) in
+                  List.filter keep (List.map (fun x => hlist_app res x) (all tbls))).
+
+  Definition ed_front (ed : embedded_dependency) : tableaux :=
+  {| types := ed.(front_types)
+   ; binds := ed.(front_binds)
+   ; filter := ed.(front_filter)
+  |}.
+
+  Fixpoint member_weaken {T} {ls : list T} {x} ls' (m : member x ls)
+  : member x (ls ++ ls') :=
+    match m in member _ ls return member x (ls ++ ls') with
+    | MZ _ => MZ _ _
+    | MN _ _ m' => MN _ (member_weaken ls' m')
+    end.
+
+
+  Definition ed_back (ed : embedded_dependency) : tableaux :=
+  {| types := ed.(front_types) ++ ed.(back_types)
+   ; binds := hlist_app ed.(front_binds) ed.(back_binds)
+   ; filter := List.map (subst_test (subst_expr (fun t x => member_weaken ed.(back_types) x))) ed.(front_filter) ++ ed.(back_filter)
+  |}.
 
 End with_tables.
