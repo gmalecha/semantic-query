@@ -65,8 +65,8 @@ Module Demo.
     (Row tt_manager (1, (0, tt))) :: nil.
 End Demo.
 
-Inductive expr (T : dec_type) (ls : list row_type) : Type :=
-| Proj : forall r, member r ls -> member T r -> expr T ls.
+Inductive expr : dec_type -> list row_type -> Type :=
+| Proj : forall ls T r, member r ls -> member T r -> expr T ls.
 
 Fixpoint cross {T U V : Type} (f : T -> U -> V) (ts : list T) (us : list U) : list V :=
   match ts with
