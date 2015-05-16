@@ -52,19 +52,7 @@ Section syntax.
 
   (** Compiling well-typed queries to RecordTableaux **)
 
-  Fixpoint weaken_expr vars rt T (e : expr vars T) {struct e}
-  : expr (rt :: vars) T :=
-    match e in @expr _ T return expr (rt :: vars) T with
-    | Proj _ _ t f => Proj (Member.MN _ t) f
-    end.
 
-  Fixpoint weaken_filter vars rt
-  : filter_type vars -> filter_type (rt :: vars) :=
-    List.map (fun x =>
-                let '(existT2 t l r) := x in
-                @existT2 _ _ _ t
-                         (@weaken_expr vars rt _ l)
-                         (@weaken_expr vars rt _ r)).
 
   (* Convert natural number indicies to [member] "proofs" *)
   Fixpoint to_member T (ls : list T) (n : nat) (t : T) {struct n}
@@ -160,7 +148,7 @@ Section syntax.
     | WT_Ret => {| types := List.map snd vars ; binds := bs ; filter := fs |}
     | @WT_Bind x ti t_t q' pf_eq pf_wt =>
       @compile_q' ((x,t_t) :: vars) q' (Hcons (to_member _ _ pf_eq) bs)
-                  (@weaken_filter _ _ fs) pf_wt
+                  (@filter_weaken _ _ fs) pf_wt
     | @WT_Guard l r q' T wt_l wt_r wt_q =>
       @compile_q' vars q' bs
                   (@existT2 _ _ _ T (compile_e wt_l) (compile_e wt_r) :: fs)

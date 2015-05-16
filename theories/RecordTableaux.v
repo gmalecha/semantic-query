@@ -11,8 +11,11 @@ Section with_tables.
   Definition binds_type : list row_type -> Type :=
     hlist (fun x => member x tbls).
 
+  Definition guard_type (vars : list row_type) : Type :=
+    {T : dec_type & expr vars T & expr vars T}.
+
   Definition filter_type (vars : list row_type) : Type :=
-    list { T : dec_type & expr vars T & expr vars T }.
+    list (guard_type vars).
 
   Definition ret_type (vars : list row_type) (result : list dec_type) : Type :=
     hlist (expr vars) result.
@@ -79,19 +82,20 @@ Section with_tables.
   Definition retD {ts ts'} (rt : ret_type ts ts') : hlist row ts -> row ts' :=
     fun vars => hlist_map (fun t e => exprD e vars) rt.
 
-  Definition queryD ts (q : query ts) : hlist table tbls -> list (hlist type ts) :=
+  Definition queryD ts (q : query ts)
+  : hlist table tbls -> list (hlist type ts) :=
     fun tbls => List.map (retD q.(ret)) (tableauxD q.(tabl) tbls).
 
-  Fixpoint subst_expr {vars vars'} (f :forall {x}, member x vars -> member x vars') (T : _)
+  Fixpoint expr_subst {vars vars'} (f :forall {x}, member x vars -> member x vars') (T : _)
            (e : expr vars T) {struct e} : expr vars' T :=
     match e in expr _ T return expr vars' T with
     | Proj _ _ v c => Proj (f v) c
     end.
-  Arguments subst_expr {_ _} _ _ _.
+  Arguments expr_subst {_ _} _ _ _.
 
-  Definition subst_test {vars vars'} (f : forall {T}, expr vars T -> expr vars' T)
-             (x : { T : dec_type & expr vars T & expr vars T })
-    : { T : dec_type & expr vars' T & expr vars' T } :=
+  Definition guard_subst {vars vars'} (f : forall {T}, expr vars T -> expr vars' T)
+             (x : guard_type vars)
+    : guard_type vars' :=
     match x with
     | existT2 T x1 x2 =>
       @existT2 _ _ _ T (f x1) (f x2)
@@ -121,7 +125,7 @@ Section with_tables.
              (h : types_homomorphism ts1 ts2)
              (f1 : list { T : dec_type & expr ts1 T & expr ts1 T })
              (f2 : list { T : dec_type & expr ts2 T & expr ts2 T }) : Type :=
-    forall x, filterD (map (subst_test (subst_expr h)) f1) x = filterD f2 x.
+    forall x, filterD (map (guard_subst (expr_subst h)) f1) x = filterD f2 x.
 
   Record tableaux_homomorphism (t1 t2 : tableaux) : Type :=
   { vars_mor : types_homomorphism t1.(types) t2.(types)
@@ -131,8 +135,8 @@ Section with_tables.
 
   Record query_homomorphism ts (q1 q2 : query ts) : Type :=
   { th : tableaux_homomorphism q1.(tabl) q2.(tabl)
-  ; retOk : forall r, filterD (map (subst_test (subst_expr th.(vars_mor))) q1.(tabl).(filter)) r = true ->
-              retD (hlist_map (fun T (x : expr (types q1.(tabl)) T) => subst_expr th.(vars_mor) _ x) q1.(ret)) r =
+  ; retOk : forall r, filterD (map (guard_subst (expr_subst th.(vars_mor))) q1.(tabl).(filter)) r = true ->
+              retD (hlist_map (fun T (x : expr (types q1.(tabl)) T) => expr_subst th.(vars_mor) _ x) q1.(ret)) r =
               retD q2.(ret) r
   }.
 
@@ -206,7 +210,7 @@ Section with_tables.
            (x0 : hlist row types0) (x : hlist row types1),
       related vars_mor0 x x0 ->
       forall (x1 : dec_type) (e : expr types1 x1),
-        exprD (subst_expr vars_mor0 x1 e) x0 = exprD e x.
+        exprD (expr_subst vars_mor0 x1 e) x0 = exprD e x.
   Proof.
     induction e.
     { simpl. red in H.
@@ -220,7 +224,7 @@ Section with_tables.
       related vars_mor0 x x0 ->
       forall
         l : list {T : dec_type & expr (types tabl0) T & expr (types tabl0) T},
-        filterD l x = filterD (map (subst_test (subst_expr vars_mor0)) l) x0.
+        filterD l x = filterD (map (guard_subst (expr_subst vars_mor0)) l) x0.
   Proof.
     induction l; simpl; auto.
     { destruct a; simpl.
@@ -239,7 +243,7 @@ Section with_tables.
         retD ret0 x =
         retD
           (hlist_map
-             (fun (T : dec_type) (x1 : expr types0 T) => subst_expr vars_mor0 T x1)
+             (fun (T : dec_type) (x1 : expr types0 T) => expr_subst vars_mor0 T x1)
              ret0) x0.
   Proof.
     induction ret0; simpl; auto.
@@ -341,11 +345,20 @@ Section with_tables.
     | MN _ _ m' => MN _ (member_weaken ls' m')
     end.
 
+  Fixpoint filter_weaken vars rt
+    : filter_type vars -> filter_type (rt :: vars) :=
+    List.map (fun x =>
+                let '(existT2 t l r) := x in
+                @existT2 _ _ _ t
+                         (@expr_weaken vars rt _ l)
+                         (@expr_weaken vars rt _ r)).
+
 
   Definition ed_back (ed : embedded_dependency) : tableaux :=
   {| types := ed.(front_types) ++ ed.(back_types)
    ; binds := hlist_app ed.(front_binds) ed.(back_binds)
-   ; filter := List.map (subst_test (subst_expr (fun t x => member_weaken ed.(back_types) x))) ed.(front_filter) ++ ed.(back_filter)
+   ; filter := List.map (guard_subst (expr_subst (fun t x => member_weaken ed.(back_types) x))) ed.(front_filter) ++ ed.(back_filter)
   |}.
+
 
 End with_tables.

@@ -2,6 +2,7 @@
 -R . SemanticQuery
 Tables.v
 RecordTableaux.v
+Chase.v
 Parsing.v
 
 ShallowTableaux.v

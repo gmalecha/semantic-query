@@ -65,10 +65,19 @@ Module Demo.
     (Row tt_manager (1, (0, tt))) :: nil.
 End Demo.
 
+(** Deeply embedded expressions **)
 Inductive expr (vars : list row_type) : dec_type -> Type :=
 | Proj : forall T r, member r vars -> member T r -> expr vars T.
 
-Fixpoint cross {T U V : Type} (f : T -> U -> V) (ts : list T) (us : list U) : list V :=
+Fixpoint expr_weaken vars rt T (e : expr vars T) {struct e}
+  : expr (rt :: vars) T :=
+  match e in @expr _ T return expr (rt :: vars) T with
+  | Proj _ _ t f => Proj (Member.MN _ t) f
+  end.
+
+
+Fixpoint cross {T U V : Type} (f : T -> U -> V) (ts : list T) (us : list U)
+: list V :=
   match ts with
   | nil => nil
   | t :: ts => List.map (f t) us ++ cross f ts us
