@@ -109,7 +109,8 @@ Section with_tables.
              (h : types_homomorphism ts1 ts2)
              (f1 : list (guard_type ts1))
              (f2 : list (guard_type ts2)) : Type :=
-    forall x, filterD (map (expr_subst h) f1) x = filterD f2 x. (** TODO: this is too strong **)
+    forall x, filterD f2 x = true ->
+              filterD (map (expr_subst h) f1) x = true.
 
   Record tableaux_homomorphism (t1 t2 : tableaux) : Type :=
   { vars_mor : types_homomorphism t1.(types) t2.(types)
@@ -259,17 +260,14 @@ Section with_tables.
     subst. forward_reason.
     destruct th0; simpl in *.
     exists x. split; [ | split ].
-    { rewrite <- retOk0.
+    { rewrite <- retOk0 by eauto.
       { destruct q2. simpl in *. clear - H.
         destruct q1. simpl in *. clear - H.
         destruct tabl0; destruct tabl1. simpl in *.
-        eauto using retD_related. }
-      { rewrite <- H1.
-        red in filterOk0.
-        rewrite <- filterOk0. reflexivity. } }
+        eauto using retD_related. } }
     { assumption. }
     { red in filterOk0. clear retOk0 bindsOk0.
-      rewrite <- filterOk0 in H1.
+      eapply filterOk0 in H1.
       rewrite <- H1.
       destruct q2. simpl in *.
       eapply related_filterD_subst_test; eauto. }
@@ -589,7 +587,7 @@ Section with_tables.
   Admitted.
 
   Definition check_filter {ts} (f1 f2 : filter_type ts)
-    : option (forall rows, filterD f1 rows = filterD f2 rows).
+    : option (forall rows, filterD f2 rows = true -> filterD f1 rows = true).
   Admitted.
 
   Fixpoint filter_map {T U} (f : T -> option U) (ls : list T) : list U :=
