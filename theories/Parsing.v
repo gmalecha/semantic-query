@@ -1,6 +1,9 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Strings.String.
 Require Import ExtLib.Core.RelDec.
+Require Import ExtLib.Data.String.
+Require Import SemanticQuery.Types.
+Require Import SemanticQuery.Expr.
 Require Import SemanticQuery.Tables.
 Require Import SemanticQuery.RecordTableaux.
 
@@ -9,7 +12,9 @@ Set Implicit Arguments.
 Section syntax.
   (** These are pre-terms, they are not guaranteed to be well typed **)
   Inductive expr_ast : Type :=
-  | Var : string -> nat -> expr_ast.
+  | Var : string -> expr_ast
+  | Proj : expr_ast -> nat -> expr_ast
+  | Eq : expr_ast -> expr_ast -> expr_ast.
 
   Inductive query_ast : Type :=
   | Bind  : string -> nat -> query_ast -> query_ast
@@ -18,28 +23,29 @@ Section syntax.
 
 
   (** This is the typing relation for raw terms **)
-  Variable tbls : list row_type.
+  Variable scheme : list type.
 
-  Fixpoint find (s : string) (ls : list (string * row_type))
-  : option row_type :=
+  Fixpoint find {T} (s : string) (ls : list (string * T))
+  : option T :=
     match ls with
     | nil => None
     | (s',v) :: ls => if s ?[ eq ] s' then Some v else find s ls
     end.
 
   (* Well-typed expressions *)
-  Inductive WT_expr (vars : list (string * row_type)) : expr_ast -> dec_type -> Type :=
-  | WT_Proj : forall t f T,
-      match find t vars with
-      | None => None
-      | Some fs => nth_error fs f
-      end = Some T ->
-      WT_expr vars (Var t f) T.
+  Inductive WT_expr (vars : list (string * type)) : expr_ast -> type -> Type :=
+  | WT_Var : forall t T,
+      find t vars = Some T ->
+      WT_expr vars (Var t) T
+  | WT_Proj : forall e ts f T,
+      WT_expr vars e (Tuple ts) ->
+      nth_error ts f = Some T ->
+      WT_expr vars (Proj e f) T.
 
   (* Well-typed queries *)
-  Inductive WT_query (vars : list (string * row_type)) : query_ast -> Type :=
+  Inductive WT_query (vars : list (string * type)) : query_ast -> Type :=
   | WT_Bind : forall v ti rt q',
-      nth_error tbls ti = Some rt ->
+      nth_error scheme ti = Some rt ->
       WT_query ((v,rt) :: vars) q' ->
       WT_query vars (Bind v ti q')
   | WT_Guard : forall l r q' T,
@@ -55,7 +61,7 @@ Section syntax.
 
 
   (* Convert natural number indicies to [member] "proofs" *)
-  Fixpoint to_member T (ls : list T) (n : nat) (t : T) {struct n}
+  Fixpoint to_member {T} (ls : list T) (n : nat) (t : T) {struct n}
   : nth_error ls n = Some t -> Member.member t ls :=
     match n as n , ls as ls
           return nth_error ls n = Some t -> Member.member t ls
@@ -82,7 +88,7 @@ Section syntax.
     end.
 
   (* Convert string indicies to [member] "proofs" *)
-  Fixpoint find_to_member (ls : list (string * row_type)) (s : string) val {struct ls}
+  Fixpoint find_to_member {T} (ls : list (string * T)) (s : string) val {struct ls}
     : find s ls = Some val -> Member.member val (List.map snd ls) :=
     match ls as ls
           return find s ls = Some val -> Member.member val (List.map snd ls)
@@ -114,36 +120,39 @@ Section syntax.
     end.
 
   (* Compile expressions *)
-  Fixpoint compile_e (vars : list (string * row_type)) T (q : expr_ast)
+  Fixpoint compile_e (vars : list (string * type)) T (q : expr_ast)
            (wt : WT_expr vars q T) {struct wt} : expr (List.map snd vars) T :=
-    match wt with
-    | WT_Proj v f T pf =>
-      match find v vars as X return match X with
-                                         | Some fs => nth_error fs f
-                                         | None => None
-                                         end = Some T ->
-                                         find v vars = X ->
-                                         expr (List.map snd vars) T
-      with
-      | None => fun pf =>
-                  match pf in _ = t
-                        return match t with
-                               | None => unit
-                               | Some _ => _ -> expr (List.map snd vars) T
-                               end
-                  with
-                  | eq_refl => tt
-                  end
-      | Some X => fun pf_f pf_v =>
-                    @Proj _ T _ (find_to_member _ _ pf_v) (to_member _ _ pf_f)
-      end pf eq_refl
+    match wt in WT_expr _ q T return expr (List.map snd vars) T with
+    | WT_Var v T pf => match find v vars as X
+                             return find v vars = X ->
+                                    X = Some T ->
+                                    expr (List.map snd vars) T
+                       with
+                       | None => fun _ pf =>
+                                   match pf in _ = X return match X with
+                                                            | None => unit
+                                                            | Some _ => _
+                                                            end
+                                   with
+                                   | eq_refl => tt
+                                   end
+                       | Some X => fun pf_v pf_t =>
+                                     match pf_t in _ = X return match X with
+                                                                | None => unit
+                                                                | Some X => expr _ X
+                                                                end with
+                                     | eq_refl => Expr.Var (find_to_member vars v pf_v)
+                                     end
+                       end eq_refl pf
+    | WT_Proj e ts f _ pf_wt pf =>
+      Expr.Proj (compile_e pf_wt) (to_member _ _ pf)
     end.
 
   (* Compile queries *)
-  Fixpoint compile_q' (vars : list (string * row_type)) (q : query_ast)
-           (bs : binds_type tbls (List.map snd vars))
+  Fixpoint compile_q' (vars : list (string * type)) (q : query_ast)
+           (bs : binds_type scheme (List.map snd vars))
            (fs : filter_type (List.map snd vars))
-           (wt : WT_query vars q)  : tableaux tbls :=
+           (wt : WT_query vars q)  : tableaux scheme :=
     match wt with
     | WT_Ret => {| types := List.map snd vars ; binds := bs ; filter := fs |}
     | @WT_Bind x ti t_t q' pf_eq pf_wt =>
@@ -151,12 +160,12 @@ Section syntax.
                   (@filter_weaken _ _ fs) pf_wt
     | @WT_Guard l r q' T wt_l wt_r wt_q =>
       @compile_q' vars q' bs
-                  (@existT2 _ _ _ T (compile_e wt_l) (compile_e wt_r) :: fs)
+                  (Expr.Eq (compile_e wt_l) (compile_e wt_r) :: fs)
                   wt_q
     end.
 
   (* The top-level compiler for raw terms into tableaux *)
-  Definition compile_q q wt : tableaux tbls :=
+  Definition compile_q q wt : tableaux scheme :=
     Eval unfold compile_q' in
       @compile_q' nil q Hnil nil wt.
 
@@ -170,7 +179,8 @@ Existing Class WT_query.
 (* Type check/inference expressions *)
 Ltac type_check_e e :=
   match e with
-  | Var ?t ?f => eapply WT_Proj; [ simpl nth_error ; reflexivity ]
+  | Var ?t => eapply WT_Var; [ simpl nth_error ; reflexivity ]
+  | Proj ?t ?f => eapply WT_Proj; [ type_check_e t | simpl nth_error ; reflexivity ]
   end.
 (* Type check/inference queries *)
 Ltac type_check_q t :=
@@ -194,19 +204,21 @@ Notation "x <- e2  ;; q" := (@Bind x e2 q%query)
 (* Invoke the compiler when you see this syntax.
  * NOTE: In Coq 8.5 we can reduce [compile_q] here
  *)
-Notation "'QUERY' tbls 'USING' q" :=
-  (@compile_q tbls q%query _) (at level 20, only parsing).
+Notation "'QUERY' scheme 'USING' q" :=
+  (@compile_q scheme q%query _) (at level 20, only parsing).
 
 (** Example **)
-Let tbls_demo :=
+Let scheme_demo :=
+  List.map Tuple (
   SemanticQuery.Tables.Demo.tt_names ::
   SemanticQuery.Tables.Demo.tt_manager ::
-  nil.
+  nil).
 
 Goal True.
-  pose (QUERY tbls_demo USING ("x" <- 0 ;;
-                               assert (Var "x" 0) == (Var "x" 0) ;;
-                               Ret)).
+  pose (QUERY scheme_demo
+        USING ("x" <- 0 ;;
+               assert (Proj (Var "x") 0) == (Proj (Var "x") 0) ;;
+               Ret)).
   unfold compile_q in t. simpl in t.
   exact I.
 Defined.

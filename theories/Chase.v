@@ -1,50 +1,24 @@
 Require Import Coq.Lists.List.
+Require Import SemanticQuery.Types.
+Require Import SemanticQuery.Expr.
 Require Import SemanticQuery.Tables.
 Require Import SemanticQuery.RecordTableaux.
 
 Section with_scheme.
-  Variable scheme : list row_type.
+  Variable scheme : list type.
 
   (** TODO: these should move **)
-  Fixpoint member_lift {T} {t : T} (vs vs' : list T) (m : member t vs')
-  : member t (vs ++ vs') :=
-    match vs as vs return member t (vs ++ vs') with
-    | nil => m
-    | v :: vs => MN _ (member_lift _ _ m)
-    end.
-
-  Fixpoint expr_lift {T} vs vs' (e : expr vs' T) {struct e}
-  : expr (vs ++ vs') T :=
-    match e in expr _ T return expr (vs ++ vs') T with
-    | Proj _ _ a b => Proj (member_lift _ _ a) b
-    end.
-
   Definition filter_lift vs vs'
   : filter_type vs' -> filter_type (vs ++ vs') :=
-    List.map (fun a =>
-                let '(existT2 a b c) := a in
-                @existT2 _ _ _ a (expr_lift vs vs' b) (expr_lift vs vs' c)).
-
-  Fixpoint member_weaken_app {T} {t : T} (vs vs' : list T) (m : member t vs')
-  : member t (vs' ++ vs) :=
-    match m in member _ vs' return member t (vs' ++ vs) with
-    | MZ _ => MZ _ _
-    | MN _ _ m => MN _ (member_weaken_app _ _ m)
-    end.
-
-  Fixpoint expr_weaken_app {T} vs vs' (e : expr vs' T) {struct e}
-  : expr (vs' ++ vs) T :=
-    match e in expr _ T return expr (vs' ++ vs) T with
-    | Proj _ _ a b => Proj (member_weaken_app _ _ a) b
-    end.
+    List.map (@expr_lift _ vs vs').
 
   Definition filter_weaken_app vs vs'
   : filter_type vs' -> filter_type (vs' ++ vs) :=
-    List.map (fun a =>
-                let '(existT2 a b c) := a in
-                @existT2 _ _ _ a
-                         (expr_weaken_app vs vs' b)
-                         (expr_weaken_app vs vs' c)).
+    List.map (@expr_weaken_app _ vs vs').
+
+  Definition filter_subst {vs vs'} (f : expr vs Bool -> expr vs' Bool)
+  : filter_type vs -> filter_type vs' :=
+    List.map f.
 
   Fixpoint member_app_case {T: Type} (t : T) xs xs'
     : member t (xs ++ xs') -> member t xs + member t xs' :=
@@ -85,8 +59,8 @@ Section with_scheme.
            (t : T) (m : member t (xs ++ xs'))
     : member t (ys ++ ys') :=
     match member_app_case _ _ _ m with
-    | inl m => member_weaken_app _ _ (mx _ m)
-    | inr m => member_lift _ _ (mx' _ m)
+    | inl m => member_weaken_app _ (mx _ m)
+    | inr m => member_lift _ (mx' _ m)
     end.
 
   Definition chase_step {t}
@@ -102,8 +76,8 @@ Section with_scheme.
                 ; binds := hlist_app q.(tabl).(binds)
                                      c.(back_binds)
                 ; filter := filter_weaken_app _ _ q.(tabl).(filter) ++
-                            List.map (guard_subst map_expr) c.(back_filter)
+                            filter_subst map_expr c.(back_filter)
                 |}
-     ; ret := hlist_map (fun t e => expr_weaken_app _ _ e) q.(ret)
+     ; ret := hlist_map (fun t e => expr_weaken_app _ e) q.(ret)
      |}.
 End with_scheme.
