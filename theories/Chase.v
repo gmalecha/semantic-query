@@ -7,6 +7,9 @@ Require Import SemanticQuery.Expr.
 Require Import SemanticQuery.Tables.
 Require Import SemanticQuery.RecordTableaux.
 
+Set Implicit Arguments.
+Set Strict Implicit.
+
 Section with_scheme.
   Variable scheme : list type.
 
@@ -61,7 +64,7 @@ Section with_scheme.
            (mx' : forall t, member t xs' -> member t ys')
            (t : T) (m : member t (xs ++ xs'))
     : member t (ys ++ ys') :=
-    match member_app_case _ _ _ m with
+    match member_app_case _ _ m with
     | inl m => member_weaken_app _ (mx _ m)
     | inr m => member_lift _ (mx' _ m)
     end.
@@ -78,7 +81,7 @@ Section with_scheme.
     {| tabl := {| types := q.(tabl).(types) ++ c.(back_types)
                 ; binds := hlist_app q.(tabl).(binds)
                                      c.(back_binds)
-                ; filter := filter_weaken_app _ _ q.(tabl).(filter) ++
+                ; filter := filter_weaken_app _ q.(tabl).(filter) ++
                             filter_subst map_expr c.(back_filter)
                 |}
      ; ret := hlist_map (fun t e => expr_weaken_app _ e) q.(ret)
@@ -268,7 +271,7 @@ Section with_scheme.
 
   Lemma filterD_weaken_app : forall {X Y} f,
       (eq ==> eq)%signature
-                 (filterD (filter_weaken_app X Y f))
+                 (filterD (@filter_weaken_app X Y f))
                  (fun x => filterD f (fst (hlist_split _ _ x))).
   Proof.
     red.
@@ -487,12 +490,12 @@ Section with_scheme.
       { destruct H; subst.
         rewrite (hlist_eta hs). simpl.
         rewrite IHls.
-        destruct (member_app_case t ls ls' x); reflexivity. } }
+        destruct (member_app_case ls ls' x); reflexivity. } }
   Qed.
 
   Lemma member_app_case_member_weaken_app
     : forall {T} (t : T) ls ls' (m : member t ls),
-      member_app_case t ls ls' (member_weaken_app ls' m) = inl m.
+      member_app_case ls ls' (member_weaken_app ls' m) = inl m.
   Proof. clear.
          induction m; simpl; auto.
          rewrite IHm. reflexivity.
@@ -500,7 +503,7 @@ Section with_scheme.
 
   Lemma member_app_case_member_lift
     : forall {T} (t : T) ls ls' (m : member t ls'),
-      member_app_case t ls ls' (member_lift ls m) = inr m.
+      member_app_case ls ls' (member_lift ls m) = inr m.
   Proof. clear.
          induction ls; simpl; intros; auto.
          rewrite IHls. reflexivity.
@@ -511,15 +514,15 @@ Section with_scheme.
              (f : forall t, member t xs -> member t xs')
              (g : forall t, member t ys -> member t ys')
              (m : member t (xs ++ ys)),
-      member_app_case t _ _ (member_map_app f g t m) =
-      match member_app_case t _ _ m with
+      member_app_case _ _ (member_map_app f g m) =
+      match member_app_case _ _ m with
       | inl m => inl (f _ m)
       | inr m => inr (g _ m)
       end.
   Proof.
     unfold member_map_app.
     intros.
-    destruct (member_app_case t _ _ m).
+    destruct (member_app_case _ _ m).
     { rewrite member_app_case_member_weaken_app. reflexivity. }
     { rewrite member_app_case_member_lift. reflexivity. }
   Qed.
@@ -582,7 +585,7 @@ Section with_scheme.
             unfold related.
             intros. do 2 rewrite hlist_get_hlist_app.
             rewrite member_app_case_member_map_app.
-            destruct (member_app_case t front_types back_types m); auto.
+            destruct (member_app_case front_types back_types m); auto.
             eapply related_follow_types_homomorphism. } } }
       { red. revert H.
         repeat first [ setoid_rewrite in_map_iff
@@ -597,6 +600,114 @@ Section with_scheme.
         eapply hlist_map_ext.
         intros. erewrite expr_weaken_app; [ | reflexivity ].
         rewrite hlist_split_hlist_app. reflexivity. } }
+  Qed.
+
+  Require Import SemanticQuery.HomomorphismSearch.
+
+  Definition query_equiv {t} (q1 q2 : query scheme t) : bool :=
+    match find_homomorphisms q1.(tabl) q2.(tabl) with
+    | nil => false
+    | _ :: _ => match find_homomorphisms q2.(tabl) q1.(tabl) with
+                | nil => false
+                | _ :: _ => true
+                end
+    end.
+
+  Fixpoint chaseK (eds : list (embedded_dependency scheme))
+             {t} (q : query scheme t)
+             {T} (k : query scheme t -> T)
+             (done : query scheme t -> T) {struct eds}
+  : T :=
+    match eds with
+    | nil => done q
+    | ed :: eds =>
+      let front := ed_front ed in
+      let hs := find_homomorphisms front q.(tabl) in
+      (fix try_each hs : T :=
+         match hs with
+         | nil => @chaseK eds _ q _ k done
+         | h :: hs =>
+           let result := chase_step q h in
+           if query_equiv q result then
+             try_each hs
+           else
+             k result
+         end) hs
+    end.
+
+  Inductive Status (T : Type) : Type :=
+  | Complete : T -> Status T
+  | Incomplete : T -> Status T.
+
+  Fixpoint get_status {T} (s : Status T) : T :=
+    match s with
+    | Complete s => s
+    | Incomplete s => s
+    end.
+
+  (** NOTE: It would be nice to use co-induction here *)
+  Fixpoint chase (fuel : nat) (eds : list (embedded_dependency scheme))
+             {t} (q : query scheme t) {struct fuel}
+  : Status (query scheme t) :=
+    match fuel with
+    | 0 => Incomplete q
+    | S fuel =>
+      chaseK eds q (fun q => chase fuel eds q) (@Complete _)
+    end.
+
+  Instance Reflexive_list_set_equiv {T} : Reflexive (@list_set_equiv T).
+  Proof. split; reflexivity. Qed.
+
+  Instance Transitive_list_set_equiv {T} : Transitive (@list_set_equiv T).
+  Proof.
+    red. destruct 1. destruct 1.
+    split; etransitivity; eauto.
+  Qed.
+
+  Lemma chaseK_sound
+  : forall (t : list type)
+           (T : Type) (P : T -> Prop)
+           (k d : query scheme t -> T)
+           (q : query scheme t)
+           (eds : list (embedded_dependency scheme))
+           (R : query scheme t -> query scheme t -> Prop),
+      Transitive R ->
+      Reflexive R ->
+      (forall a ed th, In ed eds -> R a (chase_step a (c:=ed) th)) ->
+      (forall q', R q q' -> P (k q')) ->
+      (forall q', R q q' -> P (d q')) ->
+      P (chaseK eds q k d).
+  Proof.
+    intros. induction eds; simpl.
+    { eapply H3. eauto. }
+    { induction (find_homomorphisms (ed_front a) (tabl q)).
+      { eapply IHeds. clear - H1.
+        intros. eapply H1. right. auto. }
+      { destruct (query_equiv q (chase_step q a0)); eauto.
+        eapply H2.
+        eapply H1. left. reflexivity. } }
+  Qed.
+
+  Theorem chase_sound
+  : forall (t : list type)
+           (eds : list (embedded_dependency scheme))
+           (db : DB scheme),
+      Forall (fun c => embedded_dependencyD c db) eds ->
+      forall fuel (q : query scheme t),
+        list_set_equiv (queryD q db)
+                       (queryD (get_status (@chase fuel eds _ q)) db).
+  Proof.
+    induction fuel; simpl.
+    { reflexivity. }
+    { intros.
+      eapply chaseK_sound
+        with (R := fun q1 q2 => list_set_equiv (queryD q1 db) (queryD q2 db)).
+      { red. etransitivity; eauto. }
+      { red. reflexivity. }
+      { intros. eapply chase_step_sound.
+        eapply Forall_forall in H0; eauto. eauto. }
+      { intros. etransitivity. eapply H0. eauto. }
+      { intros. eauto. } }
   Qed.
 
 End with_scheme.
