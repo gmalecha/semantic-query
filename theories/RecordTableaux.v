@@ -207,11 +207,11 @@ Section with_tables.
   Qed.
 
   Lemma related_filterD_subst_test
-    : forall (ts : list type) (q1 : query ts) (tabl0 : tableaux)
-             (vars_mor0 : types_homomorphism (types tabl0) (types (tabl q1)))
-             (x0 : Env q1.(tabl).(types)) (x : Env tabl0.(types)),
+    : forall (ts ts' : list type)
+             (vars_mor0 : types_homomorphism ts' ts)
+             (x0 : Env ts) (x : Env ts'),
       related vars_mor0 x x0 ->
-      forall l : filter_type tabl0.(types),
+      forall l : filter_type ts',
         filterD l x = filterD (map (expr_subst vars_mor0) l) x0.
   Proof.
     induction l; simpl; auto.
@@ -320,7 +320,7 @@ Section with_tables.
   {| types := ed.(front_types)
    ; binds := ed.(front_binds)
    ; filter := ed.(front_filter)
-  |}.
+   |}.
 
   Fixpoint member_weaken {T} {ls : list T} {x} ls' (m : member x ls)
   : member x (ls ++ ls') :=
@@ -337,6 +337,6 @@ Section with_tables.
   {| types := ed.(front_types) ++ ed.(back_types)
    ; binds := hlist_app ed.(front_binds) ed.(back_binds)
    ; filter := List.map (expr_subst (fun t x => member_weaken ed.(back_types) x)) ed.(front_filter) ++ ed.(back_filter)
-  |}.
+   |}.
 
 End with_tables.
