@@ -449,6 +449,7 @@ Section with_scheme.
     rewrite filter_cross_distr_1
        with (f':=filterD tabl.(filter))
          by (intros; rewrite hlist_split_hlist_app; reflexivity).
+    (** TODO: is it possible to use homomorphism_subset here? *)
     (** equational reasoning seems to no longer be possible? **)
     { split.
       { red. revert H.
