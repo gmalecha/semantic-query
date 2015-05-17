@@ -6,3 +6,4 @@ Tables.v
 RecordTableaux.v
 Chase.v
 Parsing.v
+HomomorphismSearch.v
