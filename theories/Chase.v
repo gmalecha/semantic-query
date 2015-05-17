@@ -56,7 +56,7 @@ Section with_scheme.
                    end eq_refl
     end%type.
 
-  Fixpoint member_map_app {T: Type} {xs xs' ys ys'}
+  Definition member_map_app {T: Type} {xs xs' ys ys'}
            (mx : forall t, member t xs -> member t ys)
            (mx' : forall t, member t xs' -> member t ys')
            (t : T) (m : member t (xs ++ xs'))
@@ -428,6 +428,102 @@ Section with_scheme.
         reflexivity. } }
   Qed.
 
+  Lemma hlist_map_compose {T} (A B C:T->Type)
+        (f : forall x, A x -> B x)
+        (g : forall x, B x -> C x) ls (hs : hlist A ls)  :
+    hlist_map g (hlist_map f hs) = hlist_map (fun t x => g t (f t x)) hs.
+  Proof.
+    induction hs; simpl; auto.
+    rewrite IHhs. reflexivity.
+  Qed.
+
+  Lemma hlist_map_ext {T} (A B:T->Type)
+        (f g : forall x, A x -> B x) :
+    (forall a b, f a b = g a b) ->
+    forall ls (hs : hlist A ls),
+      hlist_map f hs = hlist_map g hs.
+  Proof.
+    induction hs; simpl; intros; auto.
+    f_equal; auto.
+  Qed.
+
+  Lemma filterD_is_forallb : forall vars f env,
+      filterD f env = forallb (fun e : expr vars Bool => exprD e env) f.
+  Proof.
+    intros.
+    induction f; simpl; auto.
+    rewrite IHf.
+    destruct (exprD a env); auto.
+  Qed.
+
+  Lemma forallb_map : forall {T U} (P : U -> bool) (F : T -> U) ls,
+      forallb P (map F ls) = forallb (fun x => P (F x)) ls.
+  Proof.
+    induction ls; simpl; eauto.
+    rewrite IHls. reflexivity.
+  Qed.
+
+  Instance Proper_forallb {T}
+    : Proper ((eq ==> eq) ==> eq ==> eq) (@forallb T).
+  Proof.
+    red. red. red. intros; subst.
+    induction y0; simpl; auto.
+    rewrite IHy0. erewrite H; reflexivity.
+  Qed.
+
+  Lemma hlist_get_hlist_app {T} {F:T->Type} ls ls' t
+        (m : member t (ls ++ ls')) (hs : hlist F ls) (hs' : hlist F ls') :
+    hlist_get m (hlist_app hs hs') =
+    match @member_app_case T t ls ls' m with
+    | inl m => hlist_get m hs
+    | inr m => hlist_get m hs'
+    end.
+  Proof.
+    induction ls; simpl.
+    { rewrite (hlist_eta hs). reflexivity. }
+    { destruct (member_case m).
+      { destruct H. subst. simpl.
+        rewrite (hlist_eta hs). reflexivity. }
+      { destruct H; subst.
+        rewrite (hlist_eta hs). simpl.
+        rewrite IHls.
+        destruct (member_app_case t ls ls' x); reflexivity. } }
+  Qed.
+
+  Lemma member_app_case_member_weaken_app
+    : forall {T} (t : T) ls ls' (m : member t ls),
+      member_app_case t ls ls' (member_weaken_app ls' m) = inl m.
+  Proof. clear.
+         induction m; simpl; auto.
+         rewrite IHm. reflexivity.
+  Qed.
+
+  Lemma member_app_case_member_lift
+    : forall {T} (t : T) ls ls' (m : member t ls'),
+      member_app_case t ls ls' (member_lift ls m) = inr m.
+  Proof. clear.
+         induction ls; simpl; intros; auto.
+         rewrite IHls. reflexivity.
+  Qed.
+
+  Lemma member_app_case_member_map_app
+    : forall {T} (t : T) xs xs' ys ys'
+             (f : forall t, member t xs -> member t xs')
+             (g : forall t, member t ys -> member t ys')
+             (m : member t (xs ++ ys)),
+      member_app_case t _ _ (member_map_app f g t m) =
+      match member_app_case t _ _ m with
+      | inl m => inl (f _ m)
+      | inr m => inr (g _ m)
+      end.
+  Proof.
+    unfold member_map_app.
+    intros.
+    destruct (member_app_case t _ _ m).
+    { rewrite member_app_case_member_weaken_app. reflexivity. }
+    { rewrite member_app_case_member_lift. reflexivity. }
+  Qed.
+
   Theorem chase_step_sound
   : forall (t : list type)
            (q : query scheme t)
@@ -456,10 +552,8 @@ Section with_scheme.
         repeat first [ setoid_rewrite in_map_iff
                      | setoid_rewrite filter_In
                      | setoid_rewrite In_cross ].
-
         intros; forward_reason.
         destruct h. simpl in *.
-
         specialize (H (follow_types_homomorphism vars_mor x0)).
         destruct H.
         { split; eauto using In_follow_types_homomorphism.
@@ -470,11 +564,26 @@ Section with_scheme.
         forward_reason.
         exists (hlist_app x0 x2). subst.
         split.
-        { admit. (* expr_subst and expr_weaken_app are similar *) }
+        { unfold retD. rewrite hlist_map_compose.
+          eapply hlist_map_ext. intros.
+          erewrite expr_weaken_app; [ | reflexivity ].
+          rewrite hlist_split_hlist_app. reflexivity. }
         split.
         { do 2 eexists; split; split; eauto. }
         { red in filterOk.
-          admit. } }
+          unfold filter_subst.
+          rewrite filterD_is_forallb.
+          rewrite forallb_map.
+          rewrite filterD_is_forallb in H3.
+          erewrite Proper_forallb; try eauto.
+          red. clear. intros; subst.
+          erewrite related_exprD_subst_expr; eauto.
+          { (** this should be a lemma *)
+            unfold related.
+            intros. do 2 rewrite hlist_get_hlist_app.
+            rewrite member_app_case_member_map_app.
+            destruct (member_app_case t front_types back_types m); auto.
+            eapply related_follow_types_homomorphism. } } }
       { red. revert H.
         repeat first [ setoid_rewrite in_map_iff
                      | setoid_rewrite filter_In
@@ -482,7 +591,12 @@ Section with_scheme.
         intros; forward_reason.
         subst.
         destruct h; simpl in *.
-        admit. } }
+        exists x1. split; auto.
+        unfold retD.
+        rewrite hlist_map_compose.
+        eapply hlist_map_ext.
+        intros. erewrite expr_weaken_app; [ | reflexivity ].
+        rewrite hlist_split_hlist_app. reflexivity. } }
   Qed.
 
 End with_scheme.
