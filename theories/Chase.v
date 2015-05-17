@@ -429,10 +429,13 @@ Section with_scheme.
   Qed.
 
   Theorem chase_step_sound
-  : forall t q c h,
-      forall db,
-        embedded_dependencyD c db ->
-        list_set_equiv (queryD q db) (queryD (@chase_step t q c h) db).
+  : forall (t : list type)
+           (q : query scheme t)
+           (c : embedded_dependency scheme)
+           (h : tableaux_homomorphism (ed_front c) q.(tabl))
+           (db : DB scheme),
+      embedded_dependencyD c db ->
+      list_set_equiv (queryD q db) (queryD (@chase_step t q c h) db).
   Proof.
     destruct q; destruct c.
     unfold ed_front. simpl. unfold chase_step. simpl.
