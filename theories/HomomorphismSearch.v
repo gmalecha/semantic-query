@@ -214,58 +214,10 @@ Section with_schema.
       end.
   End _combine.
 
-  Section find_assumption.
-    Context {vs : list type}.
-    Variable goal : expr vs Bool.
-
-    Fixpoint find_assumption (ls : list (expr vs Bool)) {struct ls}
-    : option (forall vs : Env vs, filterD ls vs = true ->
-                                  exprD goal vs = true) :=
-      match ls as ls
-            return option (forall vs : Env vs, filterD ls vs = true ->
-                                               exprD goal vs = true)
-      with
-      | nil => None
-      | l :: ls =>
-        match expr_eq goal l with
-        | left pf =>
-          Some (fun vs' =>
-                  match pf in _ = t
-                        return filterD (t :: ls) vs' = true -> _
-                  with
-                  | eq_refl =>
-                    match exprD goal vs' as X
-                          return (if X then filterD ls vs' else false) = true ->
-                                 X = true
-                    with
-                    | true => fun _ => eq_refl
-                    | false => fun pf => pf
-                    end
-                  end)
-        | right _ =>
-          match find_assumption ls with
-          | None => None
-          | Some pf =>
-            Some (fun vs' pf_xs =>
-                    let pf_rest :=
-                        match filterD ls vs' as X
-                              return (if exprD l vs' then X else false) = true ->
-                                     X = true
-                        with
-                        | true => fun _ => eq_refl
-                        | false => match exprD l vs' as X
-                                         return (if X then false else false) = true ->
-                                                false = true
-                                   with
-                                   | true => fun x => x
-                                   | false => fun x => x
-                                   end
-                        end pf_xs
-                    in pf vs' pf_rest)
-          end
-        end
-      end.
-  End find_assumption.
+  Variable check_entailment
+  : forall {ts} (ps : filter_type ts) (g : guard_type ts),
+      option (forall vs, filterD ps vs = true ->
+                         exprD g vs = true).
 
   Fixpoint check_filter {ts} (f1 f2 : filter_type ts)
   : option (forall rows, filterD f2 rows = true -> filterD f1 rows = true) :=
@@ -275,7 +227,7 @@ Section with_schema.
     with
     | nil => Some (fun _ _ => eq_refl)
     | f1 :: fs1 =>
-      match find_assumption f1 f2 with
+      match check_entailment f2 f1 with
       | None => None
       | Some pf =>
         match check_filter fs1 f2 with

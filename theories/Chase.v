@@ -6,6 +6,7 @@ Require Import SemanticQuery.Types.
 Require Import SemanticQuery.Expr.
 Require Import SemanticQuery.Tables.
 Require Import SemanticQuery.RecordTableaux.
+Require Import SemanticQuery.HomomorphismSearch.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -602,15 +603,18 @@ Section with_scheme.
         rewrite hlist_split_hlist_app. reflexivity. } }
   Qed.
 
-  Require Import SemanticQuery.HomomorphismSearch.
+  Variable check_entailment
+  : forall (ts : list type) (ps : filter_type ts) (g : guard_type ts),
+      option (forall vs : Env ts, filterD ps vs = true -> exprD g vs = true).
 
   Definition query_equiv {t} (q1 q2 : query scheme t) : bool :=
-    match find_homomorphisms q1.(tabl) q2.(tabl) with
+    match find_homomorphisms check_entailment q1.(tabl) q2.(tabl) with
     | nil => false
-    | _ :: _ => match find_homomorphisms q2.(tabl) q1.(tabl) with
-                | nil => false
-                | _ :: _ => true
-                end
+    | _ :: _ =>
+      match find_homomorphisms check_entailment q2.(tabl) q1.(tabl) with
+      | nil => false
+      | _ :: _ => true
+      end
     end.
 
   Fixpoint chaseK (eds : list (embedded_dependency scheme))
@@ -622,7 +626,7 @@ Section with_scheme.
     | nil => done q
     | ed :: eds =>
       let front := ed_front ed in
-      let hs := find_homomorphisms front q.(tabl) in
+      let hs := find_homomorphisms check_entailment front q.(tabl) in
       (fix try_each hs : T :=
          match hs with
          | nil => @chaseK eds _ q _ k done
@@ -680,7 +684,7 @@ Section with_scheme.
   Proof.
     intros. induction eds; simpl.
     { eapply H3. eauto. }
-    { induction (find_homomorphisms (ed_front a) (tabl q)).
+    { induction (find_homomorphisms check_entailment (ed_front a) (tabl q)).
       { eapply IHeds. clear - H1.
         intros. eapply H1. right. auto. }
       { destruct (query_equiv q (chase_step q a0)); eauto.
