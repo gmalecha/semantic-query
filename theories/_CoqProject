@@ -8,3 +8,5 @@ Entailer.v
 Chase.v
 Parsing.v
 HomomorphismSearch.v
+Minimize.v
+Demo.v

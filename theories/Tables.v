@@ -18,36 +18,6 @@ Definition table (r : row_type) := list (row r).
 
 Definition DB (ls : list type) := hlist (fun x => list (typeD x)) ls.
 
-Module Demo.
-  Definition tt_names : row_type := Nat :: String :: nil.
-  Definition tt_manager : row_type := Nat :: Nat :: nil.
-
-(*
-  Fixpoint tuple (r : row_type) : Type :=
-    match r with
-    | nil => unit
-    | r :: rs => type r * tuple rs
-    end%type.
-*)
-
-(*
-  Fixpoint Row (r : row_type) : tuple typeD r -> hlist typeD r :=
-    match r as r return tuple typeD r -> hlist typeD r with
-    | nil => fun _ => Hnil
-    | r :: rs => fun v => Hcons (fst v) (Row rs (snd v))
-    end.
-*)
-
-  Definition Row (r : row_type) : tuple typeD r -> row r := fun x => x.
-
-  Definition tbl_names : table tt_names :=
-    (Row tt_names (0, ("Ryan"%string, tt))) ::
-    (Row tt_names (1, ("Gregory"%string, tt))) ::
-    nil.
-
-  Definition tbl_manager : table tt_manager :=
-    (Row tt_manager (1, (0, tt))) :: nil.
-End Demo.
 
 (** Cross-product of tables **)
 Fixpoint cross {T U V : Type} (f : T -> U -> V) (ts : list T) (us : list U)

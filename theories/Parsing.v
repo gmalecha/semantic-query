@@ -206,19 +206,3 @@ Notation "x <- e2  ;; q" := (@Bind x e2 q%query)
  *)
 Notation "'QUERY' scheme 'USING' q" :=
   (@compile_q scheme q%query _) (at level 20, only parsing).
-
-(** Example **)
-Let scheme_demo :=
-  List.map Tuple (
-  SemanticQuery.Tables.Demo.tt_names ::
-  SemanticQuery.Tables.Demo.tt_manager ::
-  nil).
-
-Goal True.
-  pose (QUERY scheme_demo
-        USING ("x" <- 0 ;;
-               assert (Proj (Var "x") 0) == (Proj (Var "x") 0) ;;
-               Ret)).
-  unfold compile_q in t. simpl in t.
-  exact I.
-Defined.
