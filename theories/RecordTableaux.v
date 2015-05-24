@@ -109,8 +109,17 @@ Section with_tables.
              (h : types_homomorphism ts1 ts2)
              (f1 : list (guard_type ts1))
              (f2 : list (guard_type ts2)) : Type :=
-    forall x, filterD f2 x = true ->
-              filterD (map (expr_subst h) f1) x = true.
+    forall x : Env ts2, filterD f2 x = true ->
+                        filterD (map (expr_subst h) f1) x = true.
+  Check @retD.
+  Definition ret_homomorphism {T ts1 ts2 : list type}
+             (h : types_homomorphism ts1 ts2)
+             (f2 : filter_type ts2)
+             (r1 : ret_type ts1 T)
+             (r2 : ret_type ts2 T) : Type :=
+    forall x : Env ts2,
+      filterD f2 x = true ->
+      retD (hlist_map (fun t e => expr_subst h e) r1) x = retD r2 x.
 
   Record tableaux_homomorphism (t1 t2 : tableaux) : Type :=
   { vars_mor : types_homomorphism t1.(types) t2.(types)
@@ -120,10 +129,12 @@ Section with_tables.
 
   Record query_homomorphism ts (q1 q2 : query ts) : Type :=
   { th : tableaux_homomorphism q1.(tabl) q2.(tabl)
-  ; retOk : forall r, filterD (map (expr_subst th.(vars_mor)) q1.(tabl).(filter)) r = true ->
+  ; retOk : ret_homomorphism th.(vars_mor) q2.(tabl).(filter) q1.(ret) q2.(ret)
+    (* forall r, filterD (map (expr_subst th.(vars_mor)) q1.(tabl).(filter)) r = true ->
               retD (hlist_map (fun T (x : expr q1.(tabl).(types) T) =>
                                  expr_subst th.(vars_mor) x) q1.(ret)) r =
-              retD q2.(ret) r
+              retD q2.(ret) r *)
+            
   }.
 
   Definition related {T} {F} {ts1 ts2 : list T}
@@ -204,6 +215,7 @@ Section with_tables.
     { simpl. red in H. symmetry. eapply H. }
     { simpl. rewrite IHe. reflexivity. }
     { simpl. rewrite IHe1. rewrite IHe2. reflexivity. }
+    { reflexivity. }
   Qed.
 
   Lemma related_filterD_subst_test

@@ -243,6 +243,57 @@ Section with_schema.
       end
     end.
 
+  Lemma ret_homomorphism_nil
+  : forall {vs1 vs2} {ts} (h : types_homomorphism vs1 vs2)
+           (f2 : filter_type vs2)
+           (r1 : ret_type vs1 ts)
+           (r2 : ret_type vs2 nil), ret_homomorphism h f2 Hnil r2.
+  Proof.
+    intros. red. intros. simpl. rewrite (hlist_eta (retD r2 x)). reflexivity.
+  Defined.
+
+  Lemma ret_homomorphism_cons
+  : forall {vs1 vs2} {t} {ts} {h : types_homomorphism vs1 vs2}
+           {f2 : filter_type vs2}
+           {rt}
+           {r1 : ret_type vs1 ts}
+           {r2 : ret_type vs2 (t :: ts)},
+      (forall vs : Env vs2,
+       filterD f2 vs = true ->
+       exprD (Eq (expr_subst h rt) (hlist_hd r2)) vs = true) ->
+      ret_homomorphism h f2 r1 (hlist_tl r2) ->
+      ret_homomorphism h f2 (Hcons rt r1) r2.
+  Proof.
+    intros. red. simpl.
+    intros. specialize (H _ H0).
+    rewrite (hlist_eta r2). simpl.
+    f_equal.
+    { simpl in H.
+      destruct (val_dec (exprD (expr_subst h rt) x) (exprD (hlist_hd r2) x));
+        try congruence. }
+    { eauto. }
+  Defined.
+
+
+  Fixpoint check_return {vs1 vs2} {ts} (h : types_homomorphism vs1 vs2)
+           (f2 : filter_type vs2)
+           (r1 : ret_type vs1 ts)
+  : forall (r2 : ret_type vs2 ts), option (ret_homomorphism h f2 r1 r2) :=
+    match r1 as r1 in hlist _ ts
+          return forall (r2 : ret_type vs2 ts), option (ret_homomorphism h f2 r1 r2)
+    with
+    | Hnil => fun X => Some (ret_homomorphism_nil _ _ r1 X)
+    | Hcons _ _ rt r1' => fun r2 =>
+      match check_entailment f2 (Eq (expr_subst h rt) (hlist_hd r2)) with
+      | None => None
+      | Some pf =>
+        match check_return h f2 r1' (hlist_tl r2) with
+        | None => None
+        | Some pf' => Some (ret_homomorphism_cons pf pf')
+        end
+      end
+    end.
+
   Fixpoint filter_map {T U} (f : T -> option U) (ls : list T) : list U :=
     match ls with
     | nil => nil
@@ -269,4 +320,15 @@ Section with_schema.
                           ; bindsOk := bm
                           ; filterOk := fh |}
                   end) xs.
+
+
+
+  Definition find_query_homomorphisms {ts} (q1 q2 : query schema ts)
+  : list (query_homomorphism q1 q2) :=
+    filter_map (fun th =>
+                  match check_return _ q2.(tabl).(filter) q1.(ret) q2.(ret) with
+                  | None => None
+                  | Some pf => Some {| th := th ; retOk := pf |}
+                  end) (find_homomorphisms q1.(tabl) q2.(tabl)).
+
 End with_schema.

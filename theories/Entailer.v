@@ -86,3 +86,12 @@ Section find_assumption.
     end.
 
 End find_assumption.
+
+Definition check_entails {ts : list type}
+           (ps : filter_type ts) (g : guard_type ts)
+: option
+    (forall vs : Env ts, filterD ps vs = true -> exprD g vs = true) :=
+  match check_reflexive g with
+  | Some pf => Some (fun vs _ => pf vs)
+  | None => find_assumption g ps
+  end.

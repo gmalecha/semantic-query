@@ -268,6 +268,7 @@ Section with_scheme.
       eapply hlist_get_member_weaken_app. }
     { rewrite IHa. reflexivity. }
     { rewrite IHa1. rewrite IHa2. reflexivity. }
+    { reflexivity. }
   Qed.
 
   Lemma filterD_weaken_app : forall {X Y} f,
@@ -608,10 +609,10 @@ Section with_scheme.
       option (forall vs : Env ts, filterD ps vs = true -> exprD g vs = true).
 
   Definition query_equiv {t} (q1 q2 : query scheme t) : bool :=
-    match find_homomorphisms check_entailment q1.(tabl) q2.(tabl) with
+    match find_query_homomorphisms check_entailment q1 q2 with
     | nil => false
     | _ :: _ =>
-      match find_homomorphisms check_entailment q2.(tabl) q1.(tabl) with
+      match find_query_homomorphisms check_entailment q2 q1 with
       | nil => false
       | _ :: _ => true
       end

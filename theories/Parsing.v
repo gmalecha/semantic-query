@@ -199,7 +199,7 @@ Delimit Scope query_scope with query.
 Notation "'assert' e1 == e2  ;; q" := (@Guard e1 e2 q%query)
    (at level 20, e1 at next level, e2 at next level, q at level 19) : query_scope.
 Notation "x <- e2  ;; q" := (@Bind x e2 q%query)
-   (at level 20, q at level 19) : query_scope.
+   (at level 20, q at next level) : query_scope.
 
 (* Invoke the compiler when you see this syntax.
  * NOTE: In Coq 8.5 we can reduce [compile_q] here
