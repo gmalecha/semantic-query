@@ -11,7 +11,8 @@ Set Strict Implicit.
 Inductive expr (vars : list type) : type -> UU :=
 | Var : forall T, member T vars -> expr vars T
 | Proj : forall T r, expr vars (Tuple r) -> member T r -> expr vars T
-| Eq : forall T, expr vars T -> expr vars T -> expr vars Bool.
+| Eq : forall T, expr vars T -> expr vars T -> expr vars Bool
+| Const : forall T, typeD T -> expr vars T.
 
 Definition Env : list type -> U := hlist typeD.
 Definition exprT (ls : list type) (T : Type) : Type :=
@@ -30,6 +31,7 @@ Fixpoint exprD {vars} {t} (e : expr vars t)
     let rD := exprD r in
     let eqD := @val_dec T in
     fun vs => if eqD (lD vs) (rD vs) then true else false
+  | Const T v => fun _ => v
   end.
 
 Fixpoint member_lift {T} {t : T} (vs vs' : list T) (m : member t vs')
@@ -45,6 +47,7 @@ Fixpoint expr_lift {T} vs vs' (e : expr vs' T) {struct e}
   | Var _ m => Var (member_lift _ m)
   | Proj _ _ a b => Proj (expr_lift _ a) b
   | Eq T a b => Eq (expr_lift _ a) (expr_lift _ b)
+  | Const T v => @Const _ T v
   end.
 
 Fixpoint member_weaken_app {T} {t : T} (vs vs' : list T) (m : member t vs')
@@ -60,6 +63,7 @@ Fixpoint expr_weaken_app {T} vs vs' (e : expr vs' T) {struct e}
   | Var _ a => Var (member_weaken_app _ a)
   | Proj _ _ a b => Proj (expr_weaken_app _ a) b
   | Eq T a b => Eq (expr_weaken_app _ a) (expr_weaken_app _ b)
+  | Const T v => @Const _ T v
   end.
 
 Section _subst.
@@ -72,6 +76,7 @@ Section _subst.
     | Var _ v => Var (f v)
     | Proj _ _ v c => Proj (expr_subst v) c
     | Eq T a b => Eq (expr_subst a) (expr_subst b)
+    | Const T v => @Const _ T v
     end.
 End _subst.
 
@@ -157,12 +162,13 @@ Section member_eq.
   Defined.
 End member_eq.
 
-Inductive Expr_ctor : Type := EVar | EProj | EEq.
+Inductive Expr_ctor : Type := EVar | EProj | EEq | EConst.
 Definition ctor_for {ts t} (e : expr ts t) : Expr_ctor :=
   match e with
   | Eq _ _ _ => EEq
   | Var _ _ => EVar
   | Proj _ _ _ _ => EProj
+  | Const _ _ => EConst
   end.
 Definition f_apply {T U} (f : T -> U) (a b : T) (pf : a = b) : f a = f b :=
   match pf in _ = t return f a = f t with
@@ -190,8 +196,67 @@ Proof.
   red; intros; eapply (@f_apply _ _ ctor_for _ _) in H0; auto.
 Defined.
 
+Lemma not_Const : forall a b c X,
+    EConst <> ctor_for X ->
+    @Const a b c <> X.
+Proof.
+  red; intros; eapply (@f_apply _ _ ctor_for _ _) in H0; auto.
+Defined.
+
+Lemma Injective_Var : forall ts t (m1 m2 : member t ts),
+    Var m1 = Var m2 -> m1 = m2.
+Proof.
+  intros.
+  refine (match H in _ = t
+                return match t in expr _ Z
+                             return member Z ts -> Prop
+                       with
+                       | Var x mx => fun m1 => m1 = mx
+                       | _ => fun _ => True
+                       end m1
+          with
+          | eq_refl => eq_refl
+          end).
+Defined.
+
+Lemma Injective_Proj
+  : forall ts T t t' (a : expr ts (Tuple t)) (a' : expr ts (Tuple t'))
+           (f : member T t) (f' : member T t'),
+    Proj a f = Proj a' f' ->
+    exists pf : t' = t, a = match pf in _ = X return expr _ (Tuple X) with
+                            | eq_refl => a'
+                            end /\ f = match pf in _ = X return member _ X with
+                                       | eq_refl => f'
+                                       end.
+Proof.
+  intros.
+  inversion H. exists (eq_sym H1).
+  admit.
+Defined.
+
+Lemma Injective_Eq : forall ts T T' (a b : expr ts T) (c d : expr ts T'),
+    Eq a b = Eq c d ->
+    exists pf : T' = T,
+      a = match pf in _ = X return expr _ X with
+          | eq_refl => c
+          end /\
+      b = match pf in _ = X return expr _ X with
+          | eq_refl => d
+          end.
+Proof.
+  intros. inversion H. exists (eq_sym H1).
+  admit.
+Defined.
+
+Lemma Injective_Const : forall ts T v v',
+    @Const ts T v = @Const ts T v' ->
+    v = v'.
+Proof. Admitted.
+
 Section expr_eq.
   Context {vs : list type}.
+
+
 
   Fixpoint expr_eq {T} (a b : expr vs T) {struct a} : {a = b} + {a <> b}.
     refine
@@ -267,66 +332,59 @@ Section expr_eq.
                                              end
                           | _ => _
                           end T1 l1 r1 (@expr_eq _ l1) (@expr_eq _ r1)
+       | Const T v => fun b : expr vs T =>
+                        match b as b in expr _ T'
+                              return forall v : typeD T', 
+                            {@Const _ T' v = b} +
+                            {@Const _ T' v <> b}
+                        with
+                        | Const _ v => fun v' => match val_dec v v' with
+                                                 | left pf => left _
+                                                 | right pf => right _
+                                                 end
+                        | _ => fun _ => right _
+                        end v
        end b);
-    try solve [ clear ; first [ eapply not_Var | eapply not_Proj | eapply not_Eq ] ; simpl; congruence ].
-    Lemma Injective_Var : forall ts t (m1 m2 : member t ts),
-        Var m1 = Var m2 -> m1 = m2.
-    Proof.
-      intros.
-      refine (match H in _ = t
-                    return match t in expr _ Z
-                                 return member Z ts -> Prop
-                           with
-                           | Var x mx => fun m1 => m1 = mx
-                           | _ => fun _ => True
-                           end m1
-              with
-              | eq_refl => eq_refl
-              end).
-    Defined.
-    intro pf'. apply pf. apply Injective_Var. apply pf'.
-    subst. reflexivity.
-    Lemma Injective_Proj
-      : forall ts T t t' (a : expr ts (Tuple t)) (a' : expr ts (Tuple t'))
-               (f : member T t) (f' : member T t'),
-        Proj a f = Proj a' f' ->
-        exists pf : t' = t, a = match pf in _ = X return expr _ (Tuple X) with
-                                | eq_refl => a'
-                                end /\ f = match pf in _ = X return member _ X with
-                                           | eq_refl => f'
-                                           end.
-    Proof.
-      intros.
-      inversion H. exists (eq_sym H1).
-      admit.
-    Defined.
-    Lemma Injective_Eq : forall ts T T' (a b : expr ts T) (c d : expr ts T'),
-        Eq a b = Eq c d ->
-        exists pf : T' = T,
-          a = match pf in _ = X return expr _ X with
-              | eq_refl => c
-              end /\
-          b = match pf in _ = X return expr _ X with
-              | eq_refl => d
-              end.
-    Proof.
-      intros. inversion H. exists (eq_sym H1).
-      admit.
-    Defined.
-    intro. eapply Injective_Proj in H. destruct H as [ ? [ ? ? ] ]. subst.
-    clear expr_eq; admit.
-    clear expr_eq; intro; admit.
-    clear expr_eq; intro; admit.
+    try solve [ clear ; first [ eapply not_Var | eapply not_Proj | eapply not_Eq  | eapply not_Const ] ; simpl; congruence ].
+    { intro pf'. apply pf. apply Injective_Var. apply pf'. }
+    { subst. reflexivity. }
+    { intro. eapply Injective_Proj in H. destruct H as [ ? [ ? ? ] ]. subst.
+      clear - n. admit. }
+    { clear - n. subst. intro.
+      eapply Injective_Proj in H. apply n.
+      destruct H as [ ? [ ? ? ] ].
+      clear - H. admit. }
+    { clear - pf.
+      intro. eapply Injective_Proj in H.
+      destruct H; auto. }
     { clear.
       destruct T0; try exact tt.
       intros; admit. }
     { clear.
       destruct T0; try exact tt.
-      intros; admit. }
-    subst. reflexivity.
-    clear expr_eq. intro; admit.
-    clear expr_eq. intro; admit.
-    clear expr_eq. intro; admit.
+      intros. right.
+      eapply not_Eq. compute. congruence. }
+    { subst. reflexivity. }
+    { subst. clear - n.
+      intro.
+      eapply Injective_Eq in H.
+      destruct H as [ ? [ ? ? ] ].
+      admit. }
+    { subst. clear - n.
+      intro. eapply Injective_Eq in H.
+      destruct H as [ ? [ ? ? ] ].
+      apply n. clear - H.
+      admit. }
+    { clear - n.
+      intro. eapply Injective_Eq in H.
+      destruct H. auto. }
+    { destruct T0; try exact tt.
+      intros. right.
+      eapply not_Eq. simpl. congruence. }
+    { subst. reflexivity. }
+    { clear - pf.
+      intro. eapply Injective_Const in H.
+      auto. }
   Defined.
 
 End expr_eq.
