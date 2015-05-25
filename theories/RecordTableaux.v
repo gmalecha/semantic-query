@@ -215,6 +215,7 @@ Section with_tables.
     { simpl. red in H. symmetry. eapply H. }
     { simpl. rewrite IHe. reflexivity. }
     { simpl. rewrite IHe1. rewrite IHe2. reflexivity. }
+    { simpl. rewrite IHe1. rewrite IHe2. reflexivity. }
     { reflexivity. }
   Qed.
 

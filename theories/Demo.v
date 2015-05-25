@@ -14,6 +14,10 @@ Set Strict Implicit.
 
 Definition Row (r : row_type) : tuple typeD r -> row r := fun x => x.
 
+Local Notation "#0" := (@MZ _ _ _).
+Local Notation "#1" := (@MN _ _ _ _ #0).
+Local Notation "#2" := (@MN _ _ _ _ #1).
+
 Module Movies.
   Local Open Scope string_scope.
 
@@ -36,10 +40,6 @@ Module Movies.
     eapply tbl_movies.
     eapply Hnil.
   Defined.
-
-  Notation "#0" := (@MZ _ _ _).
-  Notation "#1" := (@MN _ _ _ _ #0).
-  Notation "#2" := (@MN _ _ _ _ #1).
 
   (** TODO: I need notation for this **)
   Definition title_implies_director : embedded_dependency scheme :=
@@ -88,7 +88,6 @@ Module Movies.
 
 End Movies.
 
-(*
 Module Indexing.
   Local Open Scope string_scope.
 
@@ -102,42 +101,69 @@ Module Indexing.
 
   Definition scheme := List.map Tuple (tt_people :: tt_children :: nil).
 
-  Definition children_person : embedded_dependency scheme.
+  Definition children_lt_21_person : embedded_dependency scheme.
   refine
     (@Build_embedded_dependency scheme
                                (Tuple tt_people :: nil)
-                               (Hcons #0 (Hcons #0 Hnil))
-                               (Expr.Eq (Expr.Proj (Expr.Var #0) #0) (Expr.Proj (Expr.Var #1) #0) :: nil)
+                               (Hcons #0 Hnil)
+                               (Expr.Lt (Expr.Proj (Expr.Var #0) #1) (Expr.Const _ Nat 21) :: nil)
+                               (Tuple tt_children :: nil)
+                               (Hcons #1 Hnil)
+                               (Expr.Eq (Expr.Proj (Expr.Var #0) #0) (Expr.Proj (Expr.Var #1) #0) ::
+                                Expr.Eq (Expr.Proj (Expr.Var #0) #1) (Expr.Proj (Expr.Var #1) #1) :: nil)).
+  Defined.
+
+  Definition children_are_people : embedded_dependency scheme.
+  refine
+    (@Build_embedded_dependency scheme
+                               (Tuple tt_children :: nil)
+                               (Hcons #0 Hnil)
                                nil
-                               Hnil
-                               (Expr.Eq (Expr.Proj (Expr.Var #0) #1) (Expr.Proj (Expr.Var #1) #1) :: nil)).
-  
+                               (Tuple tt_people :: nil)
+                               (Hcons #1 Hnil)
+                               (Expr.Eq (Expr.Proj (Expr.Var #0) #0) (Expr.Proj (Expr.Var #1) #0) ::
+                                Expr.Eq (Expr.Proj (Expr.Var #0) #1) (Expr.Proj (Expr.Var #1) #1) :: nil)).
+  Defined.
 
+  Example ex1 : query scheme (String :: nil).
+  refine
+    (@Build_query scheme (String :: nil)
+                      {| types := Tuple tt_people :: nil
+                       ; binds := Hcons #0 Hnil
+                       ; filter := Expr.Lt (Expr.Const _ Nat 16)
+                                           (Expr.Proj (Expr.Var #0) #1) ::
+                                   Expr.Lt (Expr.Proj (Expr.Var #0) #1)
+                                           (Expr.Const _ Nat 18) :: nil
+                       |}
+                  (Hcons (Expr.Proj (Expr.Var #0) #0) Hnil)).
+  Defined.
 
-Definition tt_names : row_type := Nat :: String :: nil.
-Definition tt_manager : row_type := Nat :: Nat :: nil.
+End Indexing.
 
-Definition tbl_names : table tt_names :=
-  (Row tt_names (0, ("Ryan"%string, tt))) ::
-  (Row tt_names (1, ("Gregory"%string, tt))) ::
-  nil.
+Module Simple.
 
-Definition tbl_manager : table tt_manager :=
-  (Row tt_manager (1, (0, tt))) :: nil.
+  Definition tt_names : row_type := Nat :: String :: nil.
+  Definition tt_manager : row_type := Nat :: Nat :: nil.
 
-(** Example **)
-Let scheme_demo :=
-  List.map Tuple (
-  tt_names ::
-  tt_manager ::
-  nil).
+  Definition tbl_names : table tt_names :=
+    (Row tt_names (0, ("Ryan"%string, tt))) ::
+    (Row tt_names (1, ("Gregory"%string, tt))) ::
+    nil.
 
-Goal True.
-  pose (QUERY scheme_demo
-        USING ("x" <- 0 ;;
-               assert (Proj (Var "x") 0) == (Proj (Var "x") 0) ;;
-               Ret)).
-  unfold compile_q in t. simpl in t.
-  exact I.
-Defined.
-*)
+  Definition tbl_manager : table tt_manager :=
+    (Row tt_manager (1, (0, tt))) :: nil.
+
+  (** Example **)
+  Let scheme :=
+    List.map Tuple (
+    tt_names ::
+    tt_manager ::
+    nil).
+
+  Example ex1 : tableaux scheme :=
+    (QUERY scheme
+     USING ("x" <- 0 ;;
+            assert (Proj (Var "x") 0) == (Proj (Var "x") 0) ;;
+            Ret)).
+
+End Simple.

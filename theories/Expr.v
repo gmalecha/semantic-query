@@ -12,6 +12,7 @@ Inductive expr (vars : list type) : type -> UU :=
 | Var : forall T, member T vars -> expr vars T
 | Proj : forall T r, expr vars (Tuple r) -> member T r -> expr vars T
 | Eq : forall T, expr vars T -> expr vars T -> expr vars Bool
+| Lt : expr vars Nat -> expr vars Nat -> expr vars Bool
 | Const : forall T, typeD T -> expr vars T.
 
 Definition Env : list type -> U := hlist typeD.
@@ -31,6 +32,10 @@ Fixpoint exprD {vars} {t} (e : expr vars t)
     let rD := exprD r in
     let eqD := @val_dec T in
     fun vs => if eqD (lD vs) (rD vs) then true else false
+  | Lt l r =>
+    let lD := exprD l in
+    let rD := exprD r in
+    fun vs => if Compare_dec.lt_dec (lD vs) (rD vs) then true else false
   | Const T v => fun _ => v
   end.
 
@@ -47,6 +52,7 @@ Fixpoint expr_lift {T} vs vs' (e : expr vs' T) {struct e}
   | Var _ m => Var (member_lift _ m)
   | Proj _ _ a b => Proj (expr_lift _ a) b
   | Eq T a b => Eq (expr_lift _ a) (expr_lift _ b)
+  | Lt a b => Lt (expr_lift _ a) (expr_lift _ b)
   | Const T v => @Const _ T v
   end.
 
@@ -63,6 +69,7 @@ Fixpoint expr_weaken_app {T} vs vs' (e : expr vs' T) {struct e}
   | Var _ a => Var (member_weaken_app _ a)
   | Proj _ _ a b => Proj (expr_weaken_app _ a) b
   | Eq T a b => Eq (expr_weaken_app _ a) (expr_weaken_app _ b)
+  | Lt a b => Lt (expr_weaken_app _ a) (expr_weaken_app _ b)
   | Const T v => @Const _ T v
   end.
 
@@ -76,6 +83,7 @@ Section _subst.
     | Var _ v => Var (f v)
     | Proj _ _ v c => Proj (expr_subst v) c
     | Eq T a b => Eq (expr_subst a) (expr_subst b)
+    | Lt a b => Lt (expr_subst a) (expr_subst b)
     | Const T v => @Const _ T v
     end.
 End _subst.
@@ -162,10 +170,11 @@ Section member_eq.
   Defined.
 End member_eq.
 
-Inductive Expr_ctor : Type := EVar | EProj | EEq | EConst.
+Inductive Expr_ctor : Type := EVar | EProj | EEq | ELt | EConst.
 Definition ctor_for {ts t} (e : expr ts t) : Expr_ctor :=
   match e with
   | Eq _ _ _ => EEq
+  | Lt _ _ => ELt
   | Var _ _ => EVar
   | Proj _ _ _ _ => EProj
   | Const _ _ => EConst
@@ -199,6 +208,13 @@ Defined.
 Lemma not_Const : forall a b c X,
     EConst <> ctor_for X ->
     @Const a b c <> X.
+Proof.
+  red; intros; eapply (@f_apply _ _ ctor_for _ _) in H0; auto.
+Defined.
+
+Lemma not_Lt : forall a b c X,
+    ELt <> ctor_for X ->
+    @Lt a b c <> X.
 Proof.
   red; intros; eapply (@f_apply _ _ ctor_for _ _) in H0; auto.
 Defined.
@@ -248,6 +264,13 @@ Proof.
   admit.
 Defined.
 
+Lemma Injective_Lt : forall ts (a b : expr ts Nat) (c d : expr ts Nat),
+    Lt a b = Lt c d ->
+    a = c /\ b = d.
+Proof.
+  intros. inversion H. clear. auto.
+Defined.
+
 Lemma Injective_Const : forall ts T v v',
     @Const ts T v = @Const ts T v' ->
     v = v'.
@@ -255,8 +278,6 @@ Proof. Admitted.
 
 Section expr_eq.
   Context {vs : list type}.
-
-
 
   Fixpoint expr_eq {T} (a b : expr vs T) {struct a} : {a = b} + {a <> b}.
     refine
@@ -332,6 +353,28 @@ Section expr_eq.
                                              end
                           | _ => _
                           end T1 l1 r1 (@expr_eq _ l1) (@expr_eq _ r1)
+       | Lt l r => fun b : expr vs Bool =>
+                     match b as b in expr _ T'
+                           return match T' as T' return expr _ T' -> Type
+                                  with
+                                  | Bool => fun b => forall l r : expr _ Nat,
+                                      (forall x, {l = x} + {l <> x}) ->
+                                      (forall x, {r = x} + {r <> x}) ->
+                                      {Lt l r = b} + {Lt l r <> b}
+                                  | _ => fun _ => unit
+                                  end b
+                     with
+                     | Lt l' r' => fun _ _ recL recR =>
+                                     match recL l' with
+                                     | left pf => match recR r' with
+                                                  | left pf' => left _
+                                                  | right _ => right _
+                                                  end
+                                     | right _ => right _
+                                     end
+                     | Eq _ _ _ => fun _ _ _ _ => right _
+                     | _ => _
+                     end l r (expr_eq _ l) (expr_eq _ r)
        | Const T v => fun b : expr vs T =>
                         match b as b in expr _ T'
                               return forall v : typeD T', 
@@ -345,7 +388,7 @@ Section expr_eq.
                         | _ => fun _ => right _
                         end v
        end b);
-    try solve [ clear ; first [ eapply not_Var | eapply not_Proj | eapply not_Eq  | eapply not_Const ] ; simpl; congruence ].
+    try solve [ clear ; first [ eapply not_Var | eapply not_Proj | eapply not_Eq  | eapply not_Const | eapply not_Lt ] ; simpl; congruence ].
     { intro pf'. apply pf. apply Injective_Var. apply pf'. }
     { subst. reflexivity. }
     { intro. eapply Injective_Proj in H. destruct H as [ ? [ ? ? ] ]. subst.
@@ -378,9 +421,23 @@ Section expr_eq.
     { clear - n.
       intro. eapply Injective_Eq in H.
       destruct H. auto. }
+    { intros. right.
+      clear. eapply not_Eq. simpl. congruence. }
     { destruct T0; try exact tt.
       intros. right.
       eapply not_Eq. simpl. congruence. }
+    { destruct T0; try exact tt.
+      intros; right.
+      eapply not_Lt. simpl. congruence. }
+    { destruct T0; try exact tt.
+      intros; right.
+      eapply not_Lt. simpl. congruence. }
+    { subst. reflexivity. }
+    { intro. apply Injective_Lt in H. destruct H. auto. }
+    { intro. apply Injective_Lt in H. destruct H. auto. }
+    { destruct T0; try exact tt.
+      intros; right.
+      eapply not_Lt. simpl. congruence. }
     { subst. reflexivity. }
     { clear - pf.
       intro. eapply Injective_Const in H.

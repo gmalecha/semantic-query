@@ -268,6 +268,7 @@ Section with_scheme.
       eapply hlist_get_member_weaken_app. }
     { rewrite IHa. reflexivity. }
     { rewrite IHa1. rewrite IHa2. reflexivity. }
+    { rewrite IHa1. rewrite IHa2. reflexivity. }
     { reflexivity. }
   Qed.
 
