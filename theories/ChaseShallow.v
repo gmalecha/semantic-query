@@ -20,6 +20,22 @@ Definition Mimpl {T} : M T -> M T -> Prop := fun a b => forall x, a x -> b x.
 Definition Mcomap {T U} : (U -> T) -> M T -> M U :=
   fun f P x => P (f x).
 
+Theorem Mmap_Mbind : forall {A B} (f : A -> B) (c : M A),
+    Meq (Mmap f c) (Mbind c (fun x => Mret (f x))).
+Proof.
+  compute. intros.
+  split; intros;
+  repeat match goal with
+         | H : _ /\ _ |- _ => destruct H
+         | H : exists x, _ |- _ => destruct H
+         | |- exists x, _ => eexists
+         | |- _ /\ _ => split
+         | |- _ => eassumption
+         end.
+  reflexivity.
+  subst. assumption.
+Qed.
+
 
 Axiom Mbind_assoc : forall {A B C} (c1 : M A) (c2 : A -> M B) (c3 : B -> M C),
     Meq (Mbind (Mbind c1 c2) c3)
@@ -82,6 +98,12 @@ Existing Instance Reflexive_Meq.
 Axiom Symmetry_Meq : forall {T}, Symmetric (@Meq T).
 Existing Instance Symmetry_Meq.
 
+Axiom Transitive_Mimpl : forall {T}, Transitive (@Mimpl T).
+Existing Instance Transitive_Mimpl.
+Axiom Reflexive_Mimpl : forall {T}, Reflexive (@Mimpl T).
+Existing Instance Reflexive_Mimpl.
+
+
 Lemma Mbind_Mimpl : forall {T V} (P : M T) (Q : M _) (k : _ -> M V),
     Mimpl P Q ->
     Meq (Mbind P k) (Mbind (Mplus P Q) (fun x => k (fst x))).
@@ -143,6 +165,7 @@ Proof.
   { unfold query, Mplus in *.
     repeat setoid_rewrite Mbind_assoc.
     repeat setoid_rewrite Mbind_Mret. simpl.
+
     (** this is looking a bit more promising **)
     admit. }
   { clear - fh. admit. }
