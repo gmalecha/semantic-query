@@ -116,7 +116,7 @@ forall
                         (fun ab => Gf (fst ab) && Gb (fst ab) (snd ab))
                         (fun x => fst x)))
       (h : S -> S')
-      (bh : Mimpl P (fun x => F (h x)))
+      (bh : Mimpl (Mmap h P) F)
       (fh : forall x, C x = true -> Gf (h x) = true),
   Meq (query P C E)
       (query (Mplus P B)
@@ -143,15 +143,7 @@ Proof.
   { unfold query, Mplus in *.
     repeat setoid_rewrite Mbind_assoc.
     repeat setoid_rewrite Mbind_Mret. simpl.
-    etransitivity.
-    2: symmetry; rewrite Mbind_Mimpl by eassumption; reflexivity.
-    unfold Mplus.
-    repeat setoid_rewrite Mbind_assoc in edc.
-    rewrite Mbind_Mimpl by eassumption.
-    repeat setoid_rewrite Mbind_assoc.
-    repeat setoid_rewrite Mbind_Mret; simpl.
-    repeat (apply Mbind_DProper; red; intros).
-    
+    (** this is looking a bit more promising **)
     admit. }
   { clear - fh. admit. }
 Qed.
