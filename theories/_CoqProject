@@ -1,4 +1,4 @@
--R ../coq-ext-lib ExtLib
+-R ../coq-ext-lib/theories ExtLib
 -R . SemanticQuery
 Types.v
 Expr.v
