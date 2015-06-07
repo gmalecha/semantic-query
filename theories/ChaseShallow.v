@@ -1,7 +1,8 @@
 Require Import Coq.Bool.Bool.
-Require Import ExtLib.Data.Prop.
 Require Import Coq.Strings.String.
 Require Import Coq.Classes.Morphisms.
+Require Import ExtLib.Data.Prop.
+Require Import ExtLib.Tactics.
 
 Definition M (T : Type) : Type := T -> Prop.
 Definition Mconcat {t} (I : M (M t)) : M t :=
@@ -37,30 +38,70 @@ Proof.
 Qed.
 
 
-Axiom Mbind_assoc : forall {A B C} (c1 : M A) (c2 : A -> M B) (c3 : B -> M C),
+Theorem Mbind_assoc : forall {A B C} (c1 : M A) (c2 : A -> M B) (c3 : B -> M C),
     Meq (Mbind (Mbind c1 c2) c3)
         (Mbind c1 (fun x => Mbind (c2 x) c3)).
-Axiom Mbind_Mret : forall {A B} (x : A) (c : A -> M B),
+Proof.
+  compute. intros.
+  split; intros;
+  repeat first [ progress forward_reason
+               | subst ]; repeat eexists; eauto.
+Qed.
+
+Theorem Mbind_Mret : forall {A B} (x : A) (c : A -> M B),
     Meq (Mbind (Mret x) c) (c x).
-Axiom Mret_Mbind : forall {A} (c : M A),
+Proof.
+  compute. intros.
+  split; intros;
+  repeat first [ progress forward_reason
+               | subst ]; repeat eexists; eauto.
+Qed.
+
+Theorem Mret_Mbind : forall {A} (c : M A),
     Meq (Mbind c Mret) c.
+Proof.
+  compute. intros.
+  split; intros;
+  repeat first [ progress forward_reason
+               | subst ]; repeat eexists; eauto.
+Qed.
+
 
 Definition RelAnd {A} (r P : A -> A -> Prop) : A -> A -> Prop :=
   fun x y => r x y /\ P x y.
 
-Axiom Proper_Mbind : forall {A B},
+Instance Proper_Mbind : forall {A B},
     Proper (Meq ==> (pointwise_relation _ Meq) ==> Meq) (@Mbind A B).
-Existing Instance Proper_Mbind.
+Proof.
+  do 4 red; intros; unfold Mbind, Mmap, Mconcat.
+  split; intros;
+  repeat first [ progress forward_reason
+               | subst ]; repeat eexists; eauto.
+  { eapply H. eassumption. }
+  { eapply H0. eauto. }
+  { eapply H. eassumption. }
+  { eapply H0. eauto. }
+Qed.
 
 Definition drespectful {A} (F : A -> Type) (r : A -> A -> Prop) (rF : forall x y, r x y -> F x -> F y -> Prop) : forall (x y : forall x, F x) , Prop :=
   fun f g => forall x y (pf : r x y), @rF _ _ pf (f x) (g y).
 
+(*
 Axiom Mbind_DProper : forall {A B} P,
     Proper ((RelAnd eq (fun x _ => P x) ==> Meq) ==> Meq) (@Mbind A B P).
+*)
 
-Axiom Proper_Mguard : forall {A},
+Instance Proper_Mguard : forall {A},
     Proper (eq ==> Meq ==> Meq) (@Mguard A).
-Existing Instance Proper_Mguard.
+Proof.
+  do 4 red; intros; unfold Mguard.
+  split; intros;
+  repeat first [ progress forward_reason
+               | subst ]; repeat eexists; eauto.
+  { destruct y; eauto. eapply H0. eauto. }
+  { destruct y; eauto. eapply H0. eauto. }
+Qed.
+
 
 (*Axiom tbl_movies : M (string * string). *)
 
@@ -70,39 +111,30 @@ Definition query {S T: Type}
            (E : S -> T) : M T :=
   Mbind P (fun x => Mguard (C x) (Mret (E x))).
 
-Theorem chase_sound {S T U}
-        (P : M S) (C : S -> bool) (E : S -> T)
-        (Q : M U) (B1 : S -> bool) (B2 : S -> U -> bool) :
-        (query P B1 (fun x => x) =
-         query (Mbind P (fun x => Mbind Q (fun y => Mret (x,y))))
-               (fun ab => B1 (fst ab) && B2 (fst ab) (snd ab))
-               (fun x => fst x)) ->
-        (forall x, C x = true ->
-                   B1 x = true) ->
-        query P C E =
-        query (Mbind P (fun x => Mbind Q (fun y => Mret (x,y))))
-              (fun ab => C (fst ab) && B2 (fst ab) (snd ab))
-              (fun ab => E (fst ab)).
-Proof.
-Admitted.
-
 Definition Mplus {T U} (a : M T) (b : M U) : M (T * U) :=
   (Mbind a (fun x => Mbind b (fun y => Mret (x,y)))).
 
-Require Import ExtLib.Tactics.
+Instance Transitive_Meq : forall {T}, Transitive (@Meq T).
+Proof.
+  unfold Meq. red. intros. etransitivity; eauto.
+Qed.
+Instance Reflexive_Meq : forall {T}, Reflexive (@Meq T).
+Proof.
+  unfold Meq; red; reflexivity.
+Qed.
+Instance Symmetry_Meq : forall {T}, Symmetric (@Meq T).
+Proof.
+  unfold Meq; red; intros. symmetry. eauto.
+Qed.
 
-Axiom Transitive_Meq : forall {T}, Transitive (@Meq T).
-Existing Instance Transitive_Meq.
-Axiom Reflexive_Meq : forall {T}, Reflexive (@Meq T).
-Existing Instance Reflexive_Meq.
-Axiom Symmetry_Meq : forall {T}, Symmetric (@Meq T).
-Existing Instance Symmetry_Meq.
-
-Axiom Transitive_Mimpl : forall {T}, Transitive (@Mimpl T).
-Existing Instance Transitive_Mimpl.
-Axiom Reflexive_Mimpl : forall {T}, Reflexive (@Mimpl T).
-Existing Instance Reflexive_Mimpl.
-
+Instance Transitive_Mimpl : forall {T}, Transitive (@Mimpl T).
+Proof.
+  unfold Mimpl; red; intros; eauto.
+Qed.
+Instance Reflexive_Mimpl : forall {T}, Reflexive (@Mimpl T).
+Proof.
+  unfold Mimpl; red; intros; eauto.
+Qed.
 
 Lemma Mbind_Mimpl : forall {T V} (P : M T) (Q : M _) (k : _ -> M V),
     Mimpl P Q ->
@@ -128,22 +160,38 @@ Proof.
     red in H2. subst. reflexivity. }
 Qed.
 
+Lemma Mguard_Mmap : forall {A B C} (f : A -> B) (X : M A) (P : _ -> bool) (k : M C),
+    Meq (Mbind X (fun x => Mguard (P (f x)) k))
+        (Mbind (Mmap f X) (fun x => Mguard (P x) k)).
+Proof.
+  intros. unfold Meq, Mbind, Mmap, Mconcat.
+  intros.
+  split; intros; repeat (forward_reason; subst); repeat eexists; eauto.
+Qed.
+
+Lemma Mguard_andb : forall {A} (P Q : bool) (k : M A),
+    Meq (Mguard (P && Q) k) (Mguard P (Mguard Q k)).
+Proof.
+  intros.
+  destruct P; destruct Q; simpl; reflexivity.
+Qed.
+
 Theorem chase_sound_general {S S' T U}
 (* q  *) (P : M S) (C : S -> bool) (E : S -> T)
 (* ed *) (F : M S') (Gf : S' -> bool) (B : M U) (Gb : S' -> U -> bool) :
 (* ed_sound *)
-forall
-      (edc : Meq (query F Gf (fun x => x))
-                 (query (Mplus F B)
-                        (fun ab => Gf (fst ab) && Gb (fst ab) (snd ab))
-                        (fun x => fst x)))
-      (h : S -> S')
-      (bh : Mimpl (Mmap h P) F)
-      (fh : forall x, C x = true -> Gf (h x) = true),
-  Meq (query P C E)
-      (query (Mplus P B)
-             (fun ab : (S * U)%type => C (fst ab) && Gb (h (fst ab)) (snd ab))
-             (fun ab => E (fst ab))).
+  forall
+    (edc : Meq (query F Gf (fun x => x))
+               (query (Mplus F B)
+                      (fun ab => Gf (fst ab) && Gb (fst ab) (snd ab))
+                      (fun x => fst x)))
+    (h : S -> S')
+    (bh : Mimpl (Mmap h P) F)
+    (fh : forall x, C x = true -> Gf (h x) = true),
+    Meq (query P C E)
+        (query (Mplus P B)
+               (fun ab : (S * U)%type => C (fst ab) && Gb (h (fst ab)) (snd ab))
+               (fun ab => E (fst ab))).
 Proof.
   intros.
   transitivity (query P (fun x => C x && Gf (h x)) E).
@@ -165,29 +213,61 @@ Proof.
   { unfold query, Mplus in *.
     repeat setoid_rewrite Mbind_assoc.
     repeat setoid_rewrite Mbind_Mret. simpl.
-
-    (** this is looking a bit more promising **)
-    admit. }
-  { clear - fh. admit. }
+    repeat setoid_rewrite Mbind_assoc in edc.
+    repeat setoid_rewrite Mbind_Mret in edc. simpl in edc.
+    revert edc bh.
+    unfold Meq, Mimpl, Mbind, Mguard, Mret, Mconcat, Mmap, Mzero.
+    intros.
+    split.
+    { intros.
+      forward_reason.
+      specialize (edc (h x1)).
+      specialize (fh x1).
+      consider (C x1 && Gf (h x1)).
+      { intros. subst. subst.
+        destruct edc.
+        destruct H0.
+        { eexists. split.
+          exists (h x1).
+          split. eapply bh. eauto.
+          reflexivity.
+          eapply andb_true_iff in H1. destruct H1.
+          rewrite H1. reflexivity. }
+        { clear H2.
+          forward_reason. subst.
+          forward_reason. subst.
+          consider (Gf x0 && Gb x0 x2).
+          { intros. subst.
+            apply andb_true_iff in H3. destruct H3.
+            eexists. split.
+            eexists. split. 2: reflexivity.
+            2: simpl. eassumption.
+            eexists. split.
+            eexists. split. 2: reflexivity.
+            eassumption.
+            eapply andb_true_iff in H1.
+            destruct H1.
+            rewrite H1. rewrite H5. rewrite H4. simpl. reflexivity. }
+          { inversion 2. } } }
+      { intros; subst. inversion H0. } }
+    { intros.
+      forward_reason. subst.
+      forward_reason. subst.
+      consider (C x1 && Gf (h x1) && Gb (h x1) x2).
+      { intros; subst.
+        eapply andb_true_iff in H1. destruct H1.
+        eapply andb_true_iff in H1. destruct H1.
+        eexists. split.
+        eexists; split; [ eassumption | reflexivity ].
+        rewrite H1. rewrite H3. reflexivity. }
+      { inversion 2. } } }
+  { unfold query, Mplus.
+    repeat setoid_rewrite Mbind_assoc.
+    repeat setoid_rewrite Mbind_Mret. simpl.
+    eapply Proper_Mbind; try reflexivity. red; intros.
+    eapply Proper_Mbind; try reflexivity. red; intros.
+    eapply Proper_Mguard; try reflexivity.
+    specialize (fh a). clear - fh.
+    consider (C a); try reflexivity.
+    intros. rewrite H0; auto. }
 Qed.
-
-
-(* all relations have the same type *)
-
-q := for (x1 <- R1)    (** S = R1 *)
-     where (C1 x1)
-
-d := for (r1 <- R1 ; r2 <- R2 ; r3 <- R3)  (* S'=typeof R1 * typeof R2 * typeof R3 *)
-     where (B1 r1 r2 r3)
-     exists (s1 <- S1)
-     where (B2 r1 r2 r3 s1)
-
-
-
-Definition q :=
-  Mbind tbl_movies (fun m1 =>
-                      Mbind tbl_movies (fun m2 =>
-                                          Mguard (fst m1 = fst m2)
-                                                 (Mret (fst m1, snd m2)))).
-
-Definition bd
