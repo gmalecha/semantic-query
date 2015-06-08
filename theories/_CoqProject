@@ -1,5 +1,8 @@
 -R ../coq-ext-lib/theories ExtLib
 -R . SemanticQuery
+Shallow.v
+ChaseShallow.v
+
 Types.v
 Expr.v
 Tables.v

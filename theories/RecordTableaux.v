@@ -84,14 +84,6 @@ Section with_tables.
   : DB scheme -> list (hlist typeD ts) :=
     fun tbls => List.map (retD q.(ret)) (tableauxD q.(tabl) tbls).
 
-  (** TODO: Move these **)
-  Definition list_set_subset {T} (a b : list T) : Prop :=
-    forall x, In x a -> In x b.
-
-  Definition list_set_equiv {T} (a b : list T) : Prop :=
-    list_set_subset a b /\ list_set_subset b a.
-
-
   (*
     A homomorphism h : t1 -> t2 maps the for-bound variables of t1 to the for-bound variables of t2 such that
     1) x in X in t1 implies h(x) in X in t2
