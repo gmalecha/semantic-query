@@ -196,7 +196,7 @@ Section Movies.
   Qed.
 
   (** TODO: The problem with chase is that it is too trivial **)
-  Ltac chase solver eds m :=
+  Ltac chase_step solver eds m :=
     let rec discharge :=
       match goal with
       | |- forall x, _ -> _ =>
@@ -216,7 +216,7 @@ Section Movies.
     in
     match eds with
     | (?ed1,?ed2) =>
-      first [ chase solver ed1 m | chase solver ed2 m ]
+      first [ chase_step solver ed1 m | chase_step solver ed2 m ]
     | ?ed =>
       match goal with
       | |- ?X =>
@@ -232,6 +232,9 @@ Section Movies.
             exact res ]
       end
     end.
+
+  Ltac chase solver eds m :=
+    repeat (chase_step solver eds m).
 
   Example universal_ex1' : M (string * string).
   chase ltac:(eauto using rel_dec_eq_true with typeclass_instances)
