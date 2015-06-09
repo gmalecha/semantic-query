@@ -361,46 +361,6 @@ Section with_scheme.
   Qed.
 
   (** TODO: Move **)
-  Definition types_homomorphism_rest {a b c} (x : types_homomorphism (a :: b) c)
-    : types_homomorphism b c :=
-    fun t m => x t (MN _ m).
-
-  Definition binds_homomorphism_rest {a b c d e f}
-             (bh : @binds_homomorphism scheme (a :: b) c d e f)
-    : @binds_homomorphism scheme b c (types_homomorphism_rest d) (hlist_tl e) f :=
-    fun t m => bh t (MN _ m).
-
-  Definition filter_homomorphism_rest {a b c d e f}
-             (bh : @filter_homomorphism a b c (d :: e) f)
-    : @filter_homomorphism a b c e f :=
-    fun x pf =>
-      match exprD (expr_subst c d) x as X
-            return (if X then _ else false) = true ->
-                   _ = true
-      with
-      | true => fun pf => pf
-      | false => fun pf => match pf in _ = X
-                                 return match X with
-                                        | true => _
-                                        | false => True
-                                        end
-                           with
-                           | eq_refl => I
-                           end
-      end (bh _ pf).
-
-  Fixpoint follow_types_homomorphism {vs vs'} {struct vs}
-    : forall (vm : types_homomorphism vs vs'),
-      Env vs' -> Env vs :=
-    match vs as vs
-          return forall {vm : types_homomorphism vs vs'},
-        Env vs' -> Env vs
-    with
-    | nil => fun _ _ => Hnil
-    | l :: ls => fun vm g =>
-                   Hcons (hlist_get (vm _ (MZ _ _)) g)
-                         (follow_types_homomorphism (types_homomorphism_rest vm) g)
-    end.
 
   Lemma In_follow_types_homomorphism
     : forall vs vs' (vm : types_homomorphism vs vs') to from

@@ -3,11 +3,14 @@ Require Import ExtLib.Tactics.
 Require Import SemanticQuery.Types.
 Require Import SemanticQuery.Expr.
 Require Import SemanticQuery.Tables.
+Require Import SemanticQuery.Shallow.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
 Section with_tables.
+  Variable M : Type -> Type.
+  Context {DM : DataModel M}.
   Variable scheme : list type. (** A bit odd **)
 
   Definition binds_type : list type -> Type :=
@@ -34,11 +37,12 @@ Section with_tables.
   }.
 
   Fixpoint bindD {ts : list type} (names : binds_type ts)
-  : DB scheme -> list (hlist typeD ts) :=
-    match names in hlist _ ts return DB scheme -> list (hlist typeD ts) with
-    | Hnil => fun _ => Hnil :: nil
+  : DB M scheme -> M (hlist typeD ts) :=
+    match names in hlist _ ts return DB M scheme -> M (hlist typeD ts) with
+    | Hnil => fun _ => Mret Hnil
     | Hcons _ _ n names => fun tbls =>
-                             cross (fun a b => Hcons a b) (hlist_get n tbls) (bindD names tbls)
+                             Mmap (fun x => Hcons (fst x) (snd x))
+                                  (Mplus (hlist_get n tbls) (bindD names tbls))
     end.
 
   Fixpoint filterD {ts : list type} (f : filter_type ts)
@@ -55,10 +59,10 @@ Section with_tables.
    ** Queries seem more natural.
    **)
   Definition tableauxD (t : tableaux)
-  : DB scheme -> list (hlist typeD t.(types)) :=
+  : DB M scheme -> M (hlist typeD t.(types)) :=
     let all := bindD t.(binds) in
     let keep := filterD t.(filter) in
-    fun tbls => List.filter keep (all tbls).
+    fun tbls => Mbind (all tbls) (fun x => Mguard (keep x) (Mret x)).
 
   Section hlist_build2.
     Context {T V : Type} {U : T -> Type}.
@@ -81,8 +85,8 @@ Section with_tables.
     fun vars => hlist_map (fun t e => exprD e vars) rt.
 
   Definition queryD ts (q : query ts)
-  : DB scheme -> list (hlist typeD ts) :=
-    fun tbls => List.map (retD q.(ret)) (tableauxD q.(tabl) tbls).
+  : DB M scheme -> M (hlist typeD ts) :=
+    fun tbls => Mmap (retD q.(ret)) (tableauxD q.(tabl) tbls).
 
   (*
     A homomorphism h : t1 -> t2 maps the for-bound variables of t1 to the for-bound variables of t2 such that
@@ -103,7 +107,6 @@ Section with_tables.
              (f2 : list (guard_type ts2)) : Type :=
     forall x : Env ts2, filterD f2 x = true ->
                         filterD (map (expr_subst h) f1) x = true.
-  Check @retD.
   Definition ret_homomorphism {T ts1 ts2 : list type}
              (h : types_homomorphism ts1 ts2)
              (f2 : filter_type ts2)
@@ -122,11 +125,6 @@ Section with_tables.
   Record query_homomorphism ts (q1 q2 : query ts) : Type :=
   { th : tableaux_homomorphism q1.(tabl) q2.(tabl)
   ; retOk : ret_homomorphism th.(vars_mor) q2.(tabl).(filter) q1.(ret) q2.(ret)
-    (* forall r, filterD (map (expr_subst th.(vars_mor)) q1.(tabl).(filter)) r = true ->
-              retD (hlist_map (fun T (x : expr q1.(tabl).(types) T) =>
-                                 expr_subst th.(vars_mor) x) q1.(ret)) r =
-              retD q2.(ret) r *)
-            
   }.
 
   Definition related {T} {F} {ts1 ts2 : list T}
@@ -137,23 +135,134 @@ Section with_tables.
       hlist_get m b1 = hlist_get (h _ m) b2.
 
   Lemma In_bindD_hlist_get
-    : forall (l : type) (ts2 : list type) (tbl_data : DB scheme)
+    : forall (l : type) (ts2 : list type) (tbl_data : DB M scheme)
              (b2 : hlist (fun x : type => member x scheme) ts2)
-             (x : Env ts2)
              (m : member l ts2),
-      In x (bindD b2 tbl_data) ->
-      In (hlist_get m x) (hlist_get (hlist_get m b2) tbl_data).
+      Mimpl (Mmap (hlist_get m) (bindD b2 tbl_data))
+            (hlist_get (hlist_get m b2) tbl_data).
   Proof.
     induction b2.
     { simpl. intros. inversion m. }
     { simpl. intros.
-      eapply In_cross in H. forward_reason.
-      subst.
-      destruct (member_case m); forward_reason.
-      { subst. simpl. auto. }
-      { subst. simpl. eauto. } }
+      destruct (member_case m); forward_reason; subst.
+      { simpl.
+        setoid_rewrite Mmap_compose.
+        simpl.
+        eapply Proper_Mimpl_Mimpl. red.
+        eapply (Mmap_Mplus_L M (hlist_get f tbl_data) (bindD b2 tbl_data) (fun x => x)).
+        reflexivity.
+        rewrite Mmap_id. reflexivity. }
+      { setoid_rewrite Mmap_compose. simpl.
+        setoid_rewrite Mmap_Mplus_R. eauto. } }
   Qed.
 
+  Definition types_homomorphism_rest {a b c} (x : types_homomorphism (a :: b) c)
+    : types_homomorphism b c :=
+    fun t m => x t (MN _ m).
+
+  Definition binds_homomorphism_rest {a b c d e f}
+             (bh : @binds_homomorphism (a :: b) c d e f)
+    : @binds_homomorphism b c (types_homomorphism_rest d) (hlist_tl e) f :=
+    fun t m => bh t (MN _ m).
+
+  Definition filter_homomorphism_rest {a b c d e f}
+             (bh : @filter_homomorphism a b c (d :: e) f)
+    : @filter_homomorphism a b c e f :=
+    fun x pf =>
+      match exprD (expr_subst c d) x as X
+            return (if X then _ else false) = true ->
+                   _ = true
+      with
+      | true => fun pf => pf
+      | false => fun pf => match pf in _ = X
+                                 return match X with
+                                        | true => _
+                                        | false => True
+                                        end
+                           with
+                           | eq_refl => I
+                           end
+      end (bh _ pf).
+
+  Fixpoint follow_types_homomorphism {vs vs'} {struct vs}
+    : forall (vm : types_homomorphism vs vs'),
+      Env vs' -> Env vs :=
+    match vs as vs
+          return forall {vm : types_homomorphism vs vs'},
+        Env vs' -> Env vs
+    with
+    | nil => fun _ _ => Hnil
+    | l :: ls => fun vm g =>
+                   Hcons (hlist_get (vm _ (MZ _ _)) g)
+                         (follow_types_homomorphism (types_homomorphism_rest vm) g)
+    end.
+
+(*
+  Fixpoint apply_types_homomorphism {ts1 ts2} (h : types_homomorphism ts1 ts2)
+           (x : hlist typeD ts2) : hlist typeD ts1 :=
+    (match ts1 as ts1 return types_homomorphism ts1 ts2 -> hlist typeD ts1 with
+     | nil => fun _ => Hnil
+     | t1 :: ts1 => fun h => Hcons (hlist_get (h t1 (MZ t1 ts1)) x)
+                                   (apply_types_homomorphism (fun x1 m => h x1 (MN t1 m)) x)
+     end h).
+*)
+
+  Require Import Coq.Classes.Morphisms.
+  Instance Proper_Mmap {T U : Type} : Proper ((eq ==> eq) ==> Mimpl ==> Mimpl) (@Mmap M _ T U).
+  Proof.
+    unfold Mmap.
+    do 3 red.
+    intros.
+    eapply Proper_Mbind_impl. eassumption.
+    red. intros.
+    eapply Proper_Mret_impl.
+    eapply H. reflexivity.
+  Qed.
+  Lemma Mmap_Mbind : forall {T U V} (m : M T) (f : U -> V) (k : T -> M U),
+      Meq (Mmap f (Mbind m k))
+          (Mbind m (fun x => Mmap f (k x))).
+  Proof.
+    intros.
+    unfold Mmap.
+    rewrite Mbind_assoc.
+    reflexivity.
+  Qed.
+  Lemma Mmap_Mguard : forall {T U} (m : M T) (f : T -> U) p,
+      Meq (Mmap f (Mguard p m)) (Mguard p (Mmap f m)).
+  Proof.
+    intros. unfold Mguard.
+    destruct p; try reflexivity.
+    unfold Mmap. rewrite Mbind_Mzero. reflexivity.
+  Qed.
+  Lemma Mmap_Mret : forall {T U} (f : T -> U) x,
+      Meq (Mmap f (Mret x)) (Mret (f x)).
+  Proof.
+    unfold Mmap. intros.
+    rewrite Mbind_Mret. reflexivity.
+  Qed.
+
+
+(* TODO: The polymorphic proof is harder *)
+  Lemma bindD_subset
+    : forall ts1 (b1 : hlist (fun x => member x scheme) ts1)
+             ts2 (b2 : hlist (fun x => member x scheme) ts2),
+      forall tbl_data (h : types_homomorphism ts1 ts2),
+          binds_homomorphism h b1 b2 ->
+          Mimpl (Mmap (follow_types_homomorphism h) (bindD b2 tbl_data))
+                (bindD b1 tbl_data).
+  Proof.
+    induction b1.
+    { simpl. intros.
+      rewrite Mmap_ignore. reflexivity. }
+    { intros.
+      specialize (@IHb1 _ b2 tbl_data (types_homomorphism_rest h)).
+      simpl.
+      rewrite <- IHb1; clear IHb1.
+      { setoid_rewrite Mplus_Mmap_L.
+        setoid_rewrite Mmap_compose. simpl.
+  Admitted.
+
+(*
   Lemma bindD_subset
     : forall ts1 (b1 : hlist (fun x => member x scheme) ts1)
              ts2 (b2 : hlist (fun x => member x scheme) ts2),
@@ -193,6 +302,7 @@ Section with_tables.
       { revert X. clear. unfold binds_homomorphism.
         intros. eapply (X t (MN _ x)). } }
   Qed.
+*)
 
   (** TODO: Move **)
   Lemma related_exprD_subst_expr
@@ -248,11 +358,26 @@ Section with_tables.
     : forall q1 q2,
       @query_homomorphism ts q2 q1 ->
       forall tbls,
-        list_set_subset (queryD q1 tbls) (queryD q2 tbls).
+        Mimpl (queryD q1 tbls) (queryD q2 tbls).
   Proof.
     unfold queryD, tableauxD.
-    destruct 1. red.
+    destruct 1.
     intros.
+    repeat rewrite Mmap_Mbind.
+    repeat setoid_rewrite Mmap_Mguard.
+    repeat setoid_rewrite Mmap_Mret.
+    
+    SearchAbout Proper Mbind.
+    Instance Proper_Mbind_flip_impl:
+      forall {A B : Type},
+        Proper (Mimpl --> pointwise_relation A Mimpl --> Basics.flip Mimpl) (@Mbind M _ A B).
+    Proof.
+      intros. red. red. red. unfold Basics.flip.
+      intros. apply Proper_Mbind_impl; eauto.
+    Qed.
+    generalize (@bindD_subset _ _ _ _ tbls _ th0.(bindsOk)).
+
+    SearchAbout Mmap.
     eapply List.in_map_iff in H.
     eapply List.in_map_iff.
     forward_reason.
