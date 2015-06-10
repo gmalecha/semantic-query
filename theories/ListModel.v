@@ -40,8 +40,11 @@ admit.
 { intros. red. intros.
   induction x.
   { inversion H. }
-  { simpl in H. 
+  { simpl in H.
     eapply List.in_app_iff in H. destruct H; auto. } }
+admit.
+admit.
+admit.
 Defined.
 
 (*

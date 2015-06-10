@@ -34,12 +34,28 @@ Class DataModel (M : Type -> Type) : Type :=
 ; Mbind_Mzero : forall {A B : Type} (x : A -> M B), Meq (Mbind Mzero x) Mzero
 ; Mbind_ignore : forall {T U} (x : M T) (y : M U),
               Mimpl (Mbind x (fun _ => y)) y
+; Mimpl_Mzero : forall {T} (c : M T),
+    Mimpl Mzero c
+
+; Mbind_perm : forall {T U V} (m1 : M T) (m2 : M U) (f : T -> U -> M V),
+    Meq (Mbind m1 (fun x => Mbind m2 (f x)))
+        (Mbind m2 (fun y => Mbind m1 (fun x => f x y)))
+; Mbind_dup : forall {T U} (m : M T) (f : T * T -> M U),
+    Mimpl (Mbind m (fun x => f (x,x)))
+          (Mbind m (fun x => Mbind m (fun y => f (x,y))))
 }.
 
 Global Existing Instance Reflexive_Mimpl.
 Global Existing Instance Transitive_Mimpl.
 Global Existing Instance Proper_Mbind_impl.
 Global Existing Instance Proper_Mret_impl.
+
+Global Instance Reflexive_pointwise {A B : Type} (R : B -> B -> Prop) (ReflR : Reflexive R)
+  : Reflexive (pointwise_relation A R).
+Proof.
+  clear - ReflR. red. red. intros. reflexivity.
+Qed.
+
 
 Section extras.
   Variable M : Type -> Type.
@@ -206,12 +222,61 @@ Section extras.
   Qed.
 
   Global Instance Proper_Mmap_eq {T T'}
-    : Proper ((eq ==> eq) ==> Meq ==> Meq) (@Mmap T T').
+  : Proper ((eq ==> eq) ==> Meq ==> Meq) (@Mmap T T').
   Proof.
     unfold Mmap; do 3 red. intros.
     eapply Proper_Mbind_eq; eauto.
     red. intros.
     eapply Proper_Mret_eq. eapply H. reflexivity.
+  Qed.
+
+  Theorem Mmap_Mbind : forall {A B C} (f : A -> B) (c : M A) (k : _ -> M C),
+      Meq (Mbind (Mmap f c) k)
+          (Mbind c (fun x => k (f x))).
+  Proof. clear.
+         intros. unfold Mmap.
+         rewrite Mbind_assoc. setoid_rewrite Mbind_Mret. reflexivity.
+  Qed.
+
+  Global Instance Proper_Mguard_impl {A}
+  : Proper (Bool.leb ==> Mimpl ==> Mimpl) (@Mguard M _ A).
+  Proof.
+    do 3 red. intros.
+    red in H. destruct x; subst; simpl; auto.
+    eapply Mimpl_Mzero.
+  Qed.
+
+  Lemma Mbind_then_Mzero : forall {T U} (m : M T),
+      Meq (@Mzero M _ U) (Mbind m (fun _ => Mzero)).
+  Proof.
+    split.
+    { eapply Mimpl_Mzero. }
+    { rewrite Mbind_ignore. reflexivity. }
+  Qed.
+
+  Lemma Mbind_Mguard : forall {T U} (m : M T) p (k : T -> M U),
+      Meq (Mbind (Mguard p m) k)
+          (Mguard p (Mbind m k)).
+  Proof.
+    intros. unfold Mguard. destruct p; simpl; try reflexivity.
+    rewrite Mbind_Mzero. reflexivity.
+  Qed.
+
+  Lemma Mguard_and : forall {T} p q (m : M T),
+      Meq (Mguard (p && q) m)
+          (Mguard p (Mguard q m)).
+  Proof. destruct p; destruct q; reflexivity. Qed.
+
+  Lemma Mguard_perm : forall {T} p q (m : M T),
+      Meq (Mguard q (Mguard p m))
+          (Mguard p (Mguard q m)).
+  Proof. destruct p; destruct q; reflexivity. Qed.
+
+  Global Instance Proper_Mguard_eq {A : Type}
+    :  Proper (eq ==> Meq ==> Meq) (@Mguard M _ A).
+  Proof.
+    do 3 red. unfold Mguard. intros; subst.
+    destruct y; auto. reflexivity.
   Qed.
 
 End extras.

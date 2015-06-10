@@ -5,6 +5,8 @@ Require Import ExtLib.Core.RelDec.
 Require Import SemanticQuery.Shallow.
 Require Import SemanticQuery.ChaseShallow.
 
+Require Import Coq.Classes.Morphisms.
+
 Set Implicit Arguments.
 Set Strict Implicit.
 
@@ -37,45 +39,80 @@ Section Movies.
        Mbind db (fun y =>
        Mguard (x.(title) ?[ eq ] y.(title)) (Mret (x.(director),y.(actor))))).
 
+    Ltac rw_M :=
+      repeat first [ setoid_rewrite Mbind_assoc
+                   | setoid_rewrite Mbind_Mret
+                   | setoid_rewrite Mret_Mbind
+                   | setoid_rewrite Mbind_Mzero
+                   | setoid_rewrite Mmap_Mbind
+                   | setoid_rewrite Mbind_Mguard
+                   | setoid_rewrite <- Mbind_then_Mzero ].
+
     Theorem prep_for_normal
     : forall {T} (q : M T),
         Meq (Mbind (query (Mret tt) (fun _ => true) (fun x => x))
                    (fun _ => q)) q.
-    Proof. Admitted.
+    Proof. unfold query. intros. rw_M. reflexivity. Qed.
     Lemma normal_pull_plus_tt
     : forall {U V W : Type} qg (qr : unit -> U) x (y : _ -> _ -> M V),
         Meq (Mbind (query (Mret tt) qg qr)
                    (fun val : U => Mbind x (y val)))
             (Mbind (query x (fun x => qg tt) (fun x => (qr tt, x)))
                    (fun val : U * W => y (fst val) (snd val))).
-    Proof. Admitted.
+    Proof.
+      unfold query; intros. rw_M.
+      simpl.
+      destruct (qg tt); simpl; rw_M; reflexivity.
+    Qed.
+
     Lemma normal_pull_plus
     : forall {T U V W : Type} (qb : M T) qg (qr : T -> U) x (y : _ -> _ -> M V),
         Meq (Mbind (query qb qg qr)
                    (fun val : U => Mbind x (y val)))
             (Mbind (query (Mplus qb x) (fun x => qg (fst x)) (fun x => (qr (fst x), snd x)))
                    (fun val : U * W => y (fst val) (snd val))).
-    Proof. Admitted.
+    Proof.
+      unfold query, Mplus; intros. rw_M.
+      eapply Proper_Mbind_eq; try reflexivity.
+      red. intros. simpl.
+      destruct (qg a); simpl; rw_M; try reflexivity.
+    Qed.
+
     Lemma normal_pull_guard_const
     : forall {T U V : Type} (qb : M T) qg (qr : T -> U) f (y : _ -> M V),
         Meq (Mbind (query qb qg qr)
                    (fun val : U => Mguard f (y val)))
             (Mbind (query qb (fun x => f && qg x)%bool qr)
                    (fun val : U => y val)).
-    Proof. Admitted.
+    Proof.
+      unfold query; intros; rw_M.
+      eapply Proper_Mbind_eq; try reflexivity.
+      red; intros.
+      repeat setoid_rewrite Mbind_Mguard. rw_M.
+      rewrite Mguard_perm. rewrite Mguard_and.
+      reflexivity.
+    Qed.
     Lemma normal_pull_guard
     : forall {T U V : Type} (qb : M T) qg (qr : T -> U) f (y : _ -> M V),
       Meq (Mbind (query qb qg qr)
                  (fun val : U => Mguard (f val) (y val)))
           (Mbind (query qb (fun x => qg x && f (qr x))%bool qr)
                  (fun val : U => y val)).
-    Proof. Admitted.
+    Proof.
+      unfold query; intros; rw_M.
+      eapply Proper_Mbind_eq; try reflexivity.
+      red. intros.
+      setoid_rewrite Mguard_and.
+      reflexivity.
+    Qed.
     Lemma normal_pull_ret
     : forall {T U V : Type} (qb : M T) qg (qr : T -> U) (y : _ -> V),
       Meq (Mbind (query qb qg qr)
                  (fun val : U => Mret (y val)))
           (query qb qg (fun x => y (qr x))).
-    Proof. Admitted.
+    Proof.
+      unfold query. simpl; intros; rw_M. reflexivity.
+    Qed.
 
     Definition normalize_function {T} (m m' m'' : M T)
     : Meq (Mbind (query (Mret tt) (fun _ => true) (fun x => x)) (fun _ => m))
@@ -87,9 +124,8 @@ Section Movies.
       exists m''.
       subst.
       unfold query in *.
-      repeat first [ setoid_rewrite Mbind_assoc in H
-                   | setoid_rewrite Mbind_Mret in H
-                   | setoid_rewrite Mret_Mbind in H ].
+      revert H.
+      rw_M.
       symmetry. assumption.
     Defined.
 
@@ -127,64 +163,58 @@ Section Movies.
       Mimpl (Mmap f Z) x ->
       Mimpl (Mmap (fun xy => (f xy, g xy)) Z)
             (Mplus x y).
-    Admitted.
+    Proof.
+      intros. rewrite <- H; clear H. rewrite <- H0; clear H0.
+      rewrite Mplus_Mmap_L. rewrite Mplus_Mmap_R.
+      rewrite Mmap_compose. simpl.
+      unfold Mmap, Mplus.
+      rw_M.
+      generalize (@Mbind_dup M _ _ _ Z (fun xy => Mret (f (fst xy), g (snd xy)))). simpl.
+      intros. eapply H.
+    Qed.
     Lemma pick_left {T' U' V} (f' : _ -> V) (x : M V) (y : M T') (k' : M U')
     : Mimpl (Mmap f' k') x ->
       Mimpl (Mmap (fun x => f' (fst x)) (Mplus k' y))
             x.
-    Admitted.
+    Proof.
+      intros. rewrite <- H; clear H.
+      rw_M. simpl. setoid_rewrite Mbind_ignore.
+      reflexivity.
+    Qed.
     Lemma pick_right {T' U' V} (f' : _ -> V) (x : M V) (y : M T') (k' : M U')
     : Mimpl (Mmap f' k') x ->
       Mimpl (Mmap (fun x => f' (snd x)) (Mplus y k'))
             x.
-    Admitted.
+    Proof.
+      intros. rewrite <- H; clear H.
+      rw_M. simpl. rewrite Mbind_ignore. reflexivity.
+    Qed.
     Lemma pick_here {T} (x : M T)
     : Mimpl (Mmap (fun x => x) x) x.
-    Admitted.
+    Proof. rewrite Mmap_id. reflexivity. Qed.
 
     Lemma split_bind_map_search C {T T' U U'} (x : M T) (y : M U) f g
           (Z : M (T' * U'))
     : Mimpl (Mmap g Z) y /\ (Mimpl (Mmap f Z) x /\ C) ->
       Mimpl (Mmap (fun xy => (f xy, g xy)) Z)
             (Mplus x y) /\ C.
-    Admitted.
+    Proof.
+      destruct 1 as [ ? [ ? ? ] ]. split; eauto using split_bind_map.
+    Qed.
     Lemma pick_left_search C {T' U' V} (f' : _ -> V) (x : M V) (y : M T') (k' : M U')
     : Mimpl (Mmap f' k') x /\ C ->
       Mimpl (Mmap (fun x => f' (fst x)) (Mplus k' y))
             x /\ C.
-    Admitted.
+    Proof. destruct 1; split; eauto using pick_left. Qed.
     Lemma pick_right_search C {T' U' V} (f' : _ -> V) (x : M V) (y : M T') (k' : M U')
     : Mimpl (Mmap f' k') x /\ C ->
       Mimpl (Mmap (fun x => f' (snd x)) (Mplus y k'))
             x /\ C.
-    Admitted.
+    Proof. destruct 1; split; eauto using pick_right. Qed.
     Lemma pick_here_search {T} (x : M T) (C : Prop)
     : C ->
       Mimpl (Mmap (fun x => x) x) x /\ C.
-    Admitted.
-
-    Require Import Coq.Classes.Morphisms.
-    Global Instance Reflexive_pointwise {A B : Type} (R : B -> B -> Prop) (ReflR : Reflexive R)
-      : Reflexive (pointwise_relation A R).
-    Proof.
-      clear - ReflR. red. red. intros. reflexivity.
-    Qed.
-    Theorem Mmap_Mbind : forall {A B C} (f : A -> B) (c : M A) (k : _ -> M C),
-        Meq (Mbind (Mmap f c) k)
-            (Mbind c (fun x => k (f x))).
-    Proof. clear.
-           intros. unfold Mmap.
-           rewrite Mbind_assoc. setoid_rewrite Mbind_Mret. reflexivity.
-    Qed.
-    Axiom Mimpl_Mzero : forall {T} (c : M T),
-        Mimpl Mzero c.
-    Lemma Proper_Mguard_impl {A}
-      : Proper (Bool.leb ==> Mimpl ==> Mimpl) (@Mguard M _ A).
-    Proof.
-      do 3 red. intros.
-      red in H. destruct x; subst; simpl; auto.
-      eapply Mimpl_Mzero.
-    Qed.
+    Proof. intros. split; eauto using pick_here. Qed.
 
     Lemma check_query_morphism_apply
     : forall (S S' T : Type)
@@ -245,13 +275,6 @@ Section Movies.
         repeat setoid_rewrite Mbind_Mret.
         reflexivity. }
     Qed.
-
-    Axiom Mbind_perm : forall {T U V} (m1 : M T) (m2 : M U) (f : T -> U -> M V),
-        Meq (Mbind m1 (fun x => Mbind m2 (f x)))
-            (Mbind m2 (fun y => Mbind m1 (fun x => f x y))).
-    Axiom Mbind_dup : forall {T U} (m : M T) (f : T * T -> M U),
-        Mimpl (Mbind m (fun x => f (x,x)))
-              (Mbind m (fun x => Mbind m (fun y => f (x,y)))).
 
     Definition pick_dup_search
       : forall {T U U' : Type} (m : M T) (u : M U) (u' : M U') f g C,
@@ -320,7 +343,10 @@ Section Movies.
     Lemma EdsSound_app : forall (ps ps' : list Prop),
         EdsSound (ps ++ ps') <-> (EdsSound ps /\ EdsSound ps').
     Proof.
-    Admitted.
+      induction ps; simpl.
+      { tauto. }
+      { intros. rewrite IHps. tauto. }
+    Qed.
 
     Lemma EdsSound_start : forall (ps ps' : list Prop) (P : Prop),
         (EdsSound ps -> P) ->
@@ -418,8 +444,8 @@ Section Movies.
                    (fun xyz => qg (fst xyz, fst (snd xyz), snd (snd xyz)))
                    (fun xyz => qr (fst xyz, fst (snd xyz), snd (snd xyz)))).
     Proof.
-      intros. unfold query.
-    Admitted.
+      intros; unfold query, Mplus; rw_M. reflexivity.
+    Qed.
 
     Lemma query_assoc_Mplus'
     : forall {T U V W : Type} (qb : M T) (qb' : M U) (qb'' : M V) qg (qr : _ -> W),
@@ -427,7 +453,9 @@ Section Movies.
             (query (Mplus (Mplus qb qb') qb'')
                    (fun xyz => qg (fst (fst xyz), (snd (fst xyz), snd xyz)))
                    (fun xyz => qr (fst (fst xyz), (snd (fst xyz), snd xyz)))).
-    Proof. Admitted.
+    Proof.
+      intros; unfold query, Mplus; rw_M. reflexivity.
+    Qed.
 
     Lemma minimize_drop
     : forall {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) f (qb'' : M T') qg'',
@@ -439,9 +467,13 @@ Section Movies.
         Meq (query (Mplus qb qb') qg qr)
             (query (Mmap (fun x => (f x, x)) qb'') qg'' qr).
     Proof.
-      intros. revert H0. revert H.
-      unfold query, Mplus.
-    Admitted.
+      unfold query, Mplus. intros.
+      destruct H. clear H.
+      rewrite <- H1 in H0; clear H1.
+      rewrite H0; clear H0.
+      unfold Mmap. rw_M.
+      reflexivity.
+    Qed.
 
     Lemma minimize_keep
     : forall {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) (qb'' : M T') qg'',
@@ -450,7 +482,10 @@ Section Movies.
                 (query qb'' (fun y => qg'' (x,y)) (fun y => qr (x,y)))) ->
         Meq (query (Mplus qb qb') qg qr)
             (query (Mplus qb qb'') qg'' qr).
-    Proof. Admitted.
+    Proof.
+      unfold query. intros.
+      rw_M. eapply Proper_Mbind_eq; try reflexivity. eauto.
+    Qed.
 
     Lemma minimize_const
     : forall {T T' V : Type} (qb' : M T') qg (qr : _ -> V) (qb'' : M T') qg'' (v : T),
@@ -458,13 +493,9 @@ Section Movies.
             (query qb'' (fun y => qg'' (v,y)) (fun y => qr (v,y))) ->
         Meq (query (Mplus (Mret v) qb') qg qr)
             (query qb'' (fun y => qg'' (v,y)) (fun y => qr (v,y))).
-    Proof. Admitted.
-
-    Instance Proper_Mguard_eq {A : Type}
-    :  Proper (eq ==> Meq ==> Meq) (@Mguard M _ A).
     Proof.
-      do 3 red. unfold Mguard. intros; subst.
-      destruct y; auto. reflexivity.
+      intros. rewrite <- H; clear H.
+      unfold query. rw_M. reflexivity.
     Qed.
 
     Lemma minimize_last
@@ -503,7 +534,9 @@ Section Movies.
 
     Lemma rel_dec_true_eq : forall {T} {R : T -> T -> Prop} (RD : RelDec R) (ROk : RelDec_Correct RD) a b,
         a ?[ R ] b = true -> R a b.
-    Proof. Admitted.
+    Proof.
+      intros. rewrite rel_dec_correct in H. assumption.
+    Qed.
 
     Ltac solver' :=
       intros;

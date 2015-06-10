@@ -23,6 +23,9 @@ admit.
 admit.
 admit.
 { intros. forward_reason. assumption. }
+admit.
+admit.
+admit.
 Defined.
 
 (*
