@@ -29,9 +29,8 @@ Section Movies.
         (Mret tt)
         (fun xy _ => (fst xy).(director) ?[ eq ] (snd xy).(director)).
 
-(*
-    Variable title_implies_director_sound : title_implies_director.
-*)
+    (** Query normalization **)
+    (*************************)
 
     Example ex1 : M (string * string)
     := Mbind db (fun x =>
@@ -119,6 +118,9 @@ Section Movies.
       Eval cbv beta iota zeta delta [ proj1_sig normalized_ex1' normalize_function ]
       in (proj1_sig normalized_ex1').
 
+    (** Chasing **)
+    (******************)
+
     Lemma split_bind_map {T T' U U'} (x : M T) (y : M U) f g
           (Z : M (T' * U'))
     : Mimpl (Mmap g Z) y ->
@@ -189,7 +191,7 @@ Section Movies.
              (P : M S) (C : S -> bool) (E : S -> T)
              (P' : M S') (C' : S' -> bool) (E' : S' -> T),
         forall h : S -> S',
-          (Mimpl (Mmap h P) P' /\ (forall x : S, C x = true -> C' (h x) = true) /\ (forall x, E x = E' (h x))) ->
+          (Mimpl (Mmap h P) P' /\ (forall x : S, C x = true -> C' (h x) = true) /\ (forall x, C x = true -> E x = E' (h x))) ->
           Mimpl (query P C E) (query P' C' E').
     Proof.
       clear. unfold query. intros.
@@ -199,10 +201,10 @@ Section Movies.
       destruct H0.
       eapply Proper_Mbind_impl; try reflexivity.
       red. intros.
-      rewrite <- H1.
-      eapply Proper_Mguard_impl; try reflexivity.
-      red. specialize (H0 a).
+      specialize (H0 a). specialize (H1 a).
       destruct (C a); auto.
+      { rewrite H0; auto. rewrite H1; auto. reflexivity. }
+      { simpl. eapply Mimpl_Mzero. }
     Qed.
 
     Lemma chase_sound_apply
@@ -244,10 +246,42 @@ Section Movies.
         reflexivity. }
     Qed.
 
+    Axiom Mbind_perm : forall {T U V} (m1 : M T) (m2 : M U) (f : T -> U -> M V),
+        Meq (Mbind m1 (fun x => Mbind m2 (f x)))
+            (Mbind m2 (fun y => Mbind m1 (fun x => f x y))).
+    Axiom Mbind_dup : forall {T U} (m : M T) (f : T * T -> M U),
+        Mimpl (Mbind m (fun x => f (x,x)))
+              (Mbind m (fun x => Mbind m (fun y => f (x,y)))).
+
+    Definition pick_dup_search
+      : forall {T U U' : Type} (m : M T) (u : M U) (u' : M U') f g C,
+        Mimpl (Mmap f m) u /\ Mimpl (Mmap g m) u' /\ C ->
+        Mimpl (Mmap (fun x => (f x, g x)) m) (Mplus u u') /\ C.
+    Proof.
+      unfold Mmap, Mplus; intros.
+      destruct H. destruct H0. split; auto.
+      rewrite <- H; clear H.
+      repeat first [ setoid_rewrite Mbind_assoc
+                   | setoid_rewrite Mbind_Mret ].
+      rewrite Mbind_perm.
+      rewrite <- H0.
+      repeat first [ setoid_rewrite Mbind_assoc
+                   | setoid_rewrite Mbind_Mret ].
+      generalize (Mbind_dup m (fun xy => Mret (f (snd xy), g (fst xy)))).
+      simpl. intro. rewrite <- H. reflexivity.
+    Qed.
+
     Ltac find_bind_morphism continue :=
       match goal with
-      | |- Mimpl _ (Mplus _ _) /\ _ =>
-        first [ eapply split_bind_map_search ; find_bind_morphism continue
+      | |- Mimpl (Mmap _ ?D) (Mplus ?A ?B) /\ ?X =>
+        first [ eapply split_bind_map_search with (C := X) ; find_bind_morphism continue
+              | match A with
+                | context [ D ] =>
+                  match B with
+                  | context [ D ] =>
+                    eapply pick_dup_search ; find_bind_morphism continue
+                  end
+                end
               | fail 2 ]
       | |- Mimpl _ _ /\ _ =>
         (** Here I should have somethign that is atomic **)
@@ -262,15 +296,6 @@ Section Movies.
       match goal with
       | |- ?X => idtac X
       end.
-
-    Ltac check_query_morphism solver from to :=
-      assert (Mimpl from to);
-      [ instantiate ;
-        try unfold from ; try unfold to ;
-        instantiate ;
-        eapply check_query_morphism_apply ;
-        find_bind_morphism ltac:(simpl; split; solve [ solver ])
-      | ].
 
     Fixpoint EdsSound (ls : list Prop) : Prop :=
       match ls with
@@ -311,6 +336,11 @@ Section Movies.
       simpl. intros. eapply EdsSound_app in H0. tauto.
     Defined.
 
+    Ltac prove_query_morphism solver :=
+      instantiate ;
+      eapply check_query_morphism_apply ;
+      find_bind_morphism ltac:(simpl; split; solve [ solver ]).
+
     Ltac chase_ed solver m :=
       try unfold m ;
       match goal with
@@ -318,9 +348,9 @@ Section Movies.
         first [ refine (@chase_sound_apply_ed_tt _ _ _ _ _ _ _ _ _ _ _)
               | eapply (@chase_sound_apply _ _ _ _ _ _ _ _ _ _ _ _ _) ] ;
           find_bind_morphism
-            ltac:(first [ check_query_morphism solver pre post ;
-                          check_query_morphism solver post pre ;
-                          fail 1
+            ltac:(first [ assert (Meq pre post) ;
+                          [ try unfold pre ; try unfold post ; split ; prove_query_morphism solver
+                          | fail 1 ]
                         | simpl; solve [ solver ] ] )
       end.
 
@@ -331,62 +361,231 @@ Section Movies.
             | simple apply EdsSound_end ; ed_search kontinue
             | kontinue ].
 
-  Definition transitive_with_eds {T} (P : Prop) (m1 m2 : M T)
-  : (P -> Meq m2 m1) ->
-    {x : M T | P -> Meq x m1 } ->
-    {x : M T | P -> Meq x m2 }.
-  Proof.
-    intros. destruct X.
-    exists x.
-    { intro. rewrite H; auto. }
-  Defined.
+    Definition transitive_with_eds {T} (P : Prop) (m1 m2 : M T)
+      : (P -> Meq m2 m1) ->
+        {x : M T | P -> Meq x m1 } ->
+        {x : M T | P -> Meq x m2 }.
+    Proof.
+      intros. destruct X.
+      exists x.
+      { intro. rewrite H; auto. }
+    Defined.
 
-  Definition reflexive_with_eds {T} (P : Prop) (m1 : M T)
-  : { x : _ | P -> Meq x m1 }.
-  Proof.
-    exists m1. intro. reflexivity.
-  Defined.
+    Definition reflexive_with_eds {T} (P : Prop) (m1 : M T)
+      : { x : _ | P -> Meq x m1 }.
+    Proof.
+      exists m1. intro. reflexivity.
+    Defined.
 
-  Ltac chase solver :=
-    repeat match goal with
-           | |- { x : _ | EdsSound _ -> Meq x ?m } =>
-             first [ eapply transitive_with_eds ;
-                     [ solve [ ed_search ltac:(chase_ed solver m) ]
-                     | idtac "chased" ]
-                   | eapply reflexive_with_eds ]
-           end.
+    Ltac chase solver :=
+      repeat match goal with
+             | |- { x : _ | EdsSound _ -> Meq x ?m } =>
+               first [ eapply transitive_with_eds ;
+                       [ solve [ ed_search ltac:(chase_ed solver m) ]
+                       | idtac "chased" ]
+                     | eapply reflexive_with_eds ]
+             end.
 
-  Ltac solver :=
-    intros;
-    repeat match goal with
-           | H : andb ?X ?Y = true |- _ =>
-             apply Bool.andb_true_iff in H ; destruct H
-           | |- andb _ _ = true =>
-             apply Bool.andb_true_iff ; split
-           end ;
-    eauto using rel_dec_eq_true with typeclass_instances.
+    Ltac solver :=
+      intros;
+      repeat match goal with
+             | H : andb ?X ?Y = true |- _ =>
+               apply Bool.andb_true_iff in H ; destruct H
+             | |- andb _ _ = true =>
+               apply Bool.andb_true_iff ; split
+             end ;
+      eauto using rel_dec_eq_true with typeclass_instances.
 
-  Example universal_ex1'
-  : { x : M (string * string)
-    | EdsSound (title_implies_director :: nil) -> Meq x normalized_ex1 }.
-  chase solver.
-  Defined.
+    Example universal_ex1'
+      : { x : M (string * string)
+        | EdsSound (title_implies_director :: nil) -> Meq x normalized_ex1 }.
+    chase solver.
+    Defined.
 
-  Definition universal_ex1 :=
-    Eval cbv beta zeta delta [ universal_ex1' proj1_sig transitive_with_eds reflexive_with_eds ]
-    in (proj1_sig universal_ex1').
+    Definition universal_ex1 :=
+      Eval cbv beta zeta delta [ universal_ex1' proj1_sig transitive_with_eds reflexive_with_eds ]
+      in (proj1_sig universal_ex1').
 
-  Eval unfold universal_ex1 in universal_ex1.
+    Eval unfold universal_ex1 in universal_ex1.
 
+    (** Minimization **)
+    (******************)
 
+    Lemma query_assoc_Mplus
+    : forall {T U V W : Type} (qb : M T) (qb' : M U) (qb'' : M V) qg (qr : _ -> W),
+        Meq (query (Mplus (Mplus qb qb') qb'') qg qr)
+            (query (Mplus qb (Mplus qb' qb''))
+                   (fun xyz => qg (fst xyz, fst (snd xyz), snd (snd xyz)))
+                   (fun xyz => qr (fst xyz, fst (snd xyz), snd (snd xyz)))).
+    Proof.
+      intros. unfold query.
+    Admitted.
 
+    Lemma query_assoc_Mplus'
+    : forall {T U V W : Type} (qb : M T) (qb' : M U) (qb'' : M V) qg (qr : _ -> W),
+        Meq (query (Mplus qb (Mplus qb' qb'')) qg qr)
+            (query (Mplus (Mplus qb qb') qb'')
+                   (fun xyz => qg (fst (fst xyz), (snd (fst xyz), snd xyz)))
+                   (fun xyz => qr (fst (fst xyz), (snd (fst xyz), snd xyz)))).
+    Proof. Admitted.
 
+    Lemma minimize_drop
+    : forall {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) f (qb'' : M T') qg'',
+        (Mimpl (Mmap f qb') qb /\
+         Meq (query (Mplus qb qb') qg qr)
+             (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y)))) ->
+        Meq (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y)))
+            (query qb'' (fun y => qg'' (f y,y)) (fun y => qr (f y,y))) ->
+        Meq (query (Mplus qb qb') qg qr)
+            (query (Mmap (fun x => (f x, x)) qb'') qg'' qr).
+    Proof.
+      intros. revert H0. revert H.
+      unfold query, Mplus.
+    Admitted.
 
-(*
-  Example minimized_ex1 : query scheme (String :: String :: nil) :=
-    Eval vm_compute
-    in minimize (@check_entails) universal_ex1.
-*)
+    Lemma minimize_keep
+    : forall {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) (qb'' : M T') qg'',
+        (forall x,
+            Meq (query qb' (fun y => qg (x,y)) (fun y => qr (x,y)))
+                (query qb'' (fun y => qg'' (x,y)) (fun y => qr (x,y)))) ->
+        Meq (query (Mplus qb qb') qg qr)
+            (query (Mplus qb qb'') qg'' qr).
+    Proof. Admitted.
+
+    Lemma minimize_const
+    : forall {T T' V : Type} (qb' : M T') qg (qr : _ -> V) (qb'' : M T') qg'' (v : T),
+        Meq (query qb' (fun y => qg (v,y)) (fun y => qr (v,y)))
+            (query qb'' (fun y => qg'' (v,y)) (fun y => qr (v,y))) ->
+        Meq (query (Mplus (Mret v) qb') qg qr)
+            (query qb'' (fun y => qg'' (v,y)) (fun y => qr (v,y))).
+    Proof. Admitted.
+
+    Instance Proper_Mguard_eq {A : Type}
+    :  Proper (eq ==> Meq ==> Meq) (@Mguard M _ A).
+    Proof.
+      do 3 red. unfold Mguard. intros; subst.
+      destruct y; auto. reflexivity.
+    Qed.
+
+    Lemma minimize_last
+    : forall {T V : Type} (qb : M T) qg (qr : _ -> V) qg',
+        (forall x, qg x = qg' x) ->
+        Meq (query qb qg qr) (query qb qg' qr).
+    Proof.
+      unfold query. intros.
+      eapply Proper_Mbind_eq. reflexivity.
+      intro.
+      rewrite H. reflexivity.
+    Qed.
+
+    Definition transitive_single {T} (m1 m2 : M T)
+      : Meq m2 m1 ->
+        {x : M T | Meq x m1 } ->
+        {x : M T | Meq x m2 }.
+    Proof.
+      intros. destruct X.
+      exists x.
+      { rewrite H; auto. }
+    Defined.
+
+    Definition reflexive_single {T} (m1 : M T)
+      : { x : _ | Meq x m1 }.
+    Proof.
+      exists m1. reflexivity.
+    Defined.
+
+    Definition simpl_single {T} (m1 m2 : M T)
+    : m1 = m2 ->
+      { x : _ | Meq x m1 }.
+    Proof.
+      exists m2. subst. reflexivity.
+    Defined.
+
+    Lemma rel_dec_true_eq : forall {T} {R : T -> T -> Prop} (RD : RelDec R) (ROk : RelDec_Correct RD) a b,
+        a ?[ R ] b = true -> R a b.
+    Proof. Admitted.
+
+    Ltac solver' :=
+      intros;
+      repeat match goal with
+             | H : andb ?X ?Y = true |- _ =>
+               apply Bool.andb_true_iff in H ; destruct H
+             | |- andb _ _ = true =>
+               apply Bool.andb_true_iff ; split
+             | H : _ ?[ _ ] _ = true |- _ => eapply rel_dec_true_eq in H; eauto with typeclass_instances
+             end ;
+      repeat first [ solve [ eauto using rel_dec_eq_true with typeclass_instances ]
+                   | f_equal ].
+
+    Ltac prove_query_isomorphism solver :=
+      match goal with
+      | |- Meq ?A ?B => split; prove_query_morphism solver
+      end.
+
+    Ltac drop_dup solver :=
+      let rec search :=
+          first [ simple eapply pick_here_search ; solve [ prove_query_isomorphism solver ]
+                | simple eapply pick_left_search ; simple eapply pick_here_search ; solve [ prove_query_isomorphism solver ]
+                | simple eapply pick_right_search ; search
+                ]
+      in
+      match goal with
+      | |- Meq _ _ =>
+        first [ simple eapply minimize_const ; drop_dup solver
+              | eapply minimize_drop ; [ search | drop_dup solver ]
+              | simple eapply minimize_keep ; drop_dup solver
+              | simple eapply minimize_last ;
+                [ simpl; intros ;
+                  repeat (rewrite rel_dec_eq_true by eauto with typeclass_instances) ]
+              ]
+      end.
+
+    Ltac solve_conclusion :=
+      try reflexivity ;
+      match goal with
+      | |- ?X = _ (@pair ?T ?U ?x ?y) =>
+        match X with
+        | @?X' x =>
+          change X with ((fun xy : _ * _ => X' (fst xy) (snd xy)) (x,y))
+        | _ =>
+          let X' := eval pattern x in X in
+          match X' with
+          | ?F _ =>
+            let F' := eval pattern y in F in
+            match F' with
+            | ?F' _ =>
+              let F' := eval cbv beta in (fun xy : T * U => F' (fst xy) (snd xy)) in
+              change X with (F' (x,y))
+            end
+          end
+        end
+      end ; reflexivity.
+
+    Ltac minimize solver :=
+      let kont :=
+          (repeat rewrite query_assoc_Mplus) ;
+          drop_dup solver
+      in
+      match goal with
+      | |- { x : _ | Meq x ?m } =>
+        eapply transitive_single ;
+        [ try unfold m ; kont ; solve [ solve_conclusion ]
+        | ]
+      | |- { x : _ | _ -> Meq x ?m } =>
+        eapply transitive_with_eds ;
+        [ intro ; try unfold m ; kont ; solve [ solve_conclusion ]
+        | ]
+      end ;
+      eapply simpl_single; simpl; reflexivity.
+
+    Example minimized_ex1' : { x : _ | Meq x universal_ex1 }.
+    minimize solver'.
+    Defined.
+
+    Definition minimized_ex1 :=
+      Eval cbv beta iota zeta delta [ minimized_ex1' proj1_sig transitive_single simpl_single ]
+      in (proj1_sig minimized_ex1').
+    Print minimized_ex1. (** Not perfect, but pretty good **)
 
 (*
   Definition mkTable {T} (l : list T) : M T :=
