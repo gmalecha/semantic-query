@@ -27,11 +27,11 @@
 
 \begin{document}
 
-\title{Using Dependent Types to Enable Semantic Optimization of Language-Integrated Queries}
+\title{Using Dependent Types and Tactics to Enable Semantic Optimization of Language-Integrated Queries}
 
-\authorinfo{Gregory Malecha}{University of California at San Diego?}{\sf gmalecha@eng.ucsd.edu} 
+\authorinfo{Gregory Malecha}{University of California at San Diego}{\sf gmalecha@eng.ucsd.edu} 
 
-\authorinfo{Ryan Wisnesky}{Massachusetts Institute of Technology}{\sf wisnesky@math.mit.edu} 
+\authorinfo{Ryan Wisnesky\titlenote{Work supported by ONR grant N000141310260 and AFOSR grant FA9550-14-1-0031}}{Massachusetts Institute of Technology}{\sf wisnesky@math.mit.edu} 
 
 \date{\today}
 
@@ -54,18 +54,20 @@ with fields ${\sf title}$, ${\sf director}$, and ${\sf actor}$:
 This query returns (a set of) tuples $(d,a)$ where $a$ acted in a movie directed by $d
 $.  A naive implementation of this query will require a join.  However, when $Movies$ 
 satisfies the the functional dependency ${\sf title} \to {\sf director}$ (meaning that 
-if $({\sf director}: d, {\sf title}: t, {\sf actor}: a)$ and $({\sf director}: d^\prime, {\sf title}: t^\prime, {\sf actor}: a^\prime)$ are $Movies$ records such that $t = t^\prime$, then $d = d^\prime$), this query is equivalent to
+if $({\sf director}: d, {\sf title}: t, {\sf actor}: a)$ and $({\sf director}: d^\prime, {\sf title}: t^\prime, {\sf actor}: a^\prime)$ are $Movies$ records such that $t = t^\prime$, then $d = d^\prime$), this query is equivalent to:
 \begin{eqnarray*}
 & & \FOR (m \IN Movies) \\
  & & \RETURN (m.{\sf director}, m.{\sf actor})
  \end{eqnarray*}
 which can be evaluated without a join.  (Note that if $Movies$ did not satisfy the functional dependency, the equivalence would not necessarily hold.)  
 
-Of course, knowing that the functional dependency holds, a programmer might simply write the optimized query to begin with.  But constraints are not always known at compile time, such as when relations are indexed on-the-fly.  Moreover, people are not always the programmers: information-integration systems such as Clio~\cite{haas:clio} automatically generate large numbers of queries.  The significant, potentially order-of-magnitude speed-ups enabled by semantic optimization are well-documented in the literature~\cite{Cheng:1999:ITS:645925.671357}.  
+Of course, knowing that the functional dependency holds, a programmer might simply write the optimized query to begin with.  But constraints are not always known at compile time, such as when relations are indexed dynamically.  Moreover, people are not always the programmers: information-integration systems such as Clio~\cite{haas:clio} automatically generate large numbers of queries.  The significant, potentially order-of-magnitude speed-ups enabled by semantic optimization are well-documented in the literature~\cite{Cheng:1999:ITS:645925.671357}.  
 
-Although certain RBMS's such as DB2 can perform limited amounts of semantic optimization~\cite{Cheng:1999:ITS:645925.671357}, RDBMS's are fundamentally limited by the expressiveness of SQL as a constraint specification language: SQL includes keys and foreign keys but constraints such as the functional dependency above are not expressible in SQL.  In relational database theory, a fragment of first-order logic, the so-called {\it embedded, implicational dependencies} (EDs), are used to capture almost all constraints used in practice, including keys, foreign keys, inclusions, functional dependencies, and join decompositions, and a large body of literature has developed to facilitate reasoning about queries in the presence of EDs~\cite{Popa99anequational}. 
+Although certain RDBMS's such as DB2 can perform limited amounts of semantic optimization~\cite{Cheng:1999:ITS:645925.671357}, RDBMS's are fundamentally limited by the expressiveness of SQL as a constraint specification language: SQL includes keys and foreign keys but constraints such as the functional dependency above are not directly expressible in SQL.  (Technically, functional dependencies can be encoded as {\tt CHECK} constraints, but even {\tt CHECK} constraints cannot capture multi-table constraints such as join decompositions).  In relational database theory, a fragment of first-order logic, the so-called {\it embedded, implicational dependencies} (EDs), are used to capture almost all constraints used in practice, including keys, foreign keys, inclusions, functional dependencies, and join decompositions, and a large body of literature has developed to facilitate reasoning about queries in the presence of EDs~\cite{Popa99anequational}. 
 
- In this paper we demonstrate that language-integrated query systems (LINQs~\cite{monad}) that compile to SQL can expose data integrity constraints, in the guise of EDs, as first-class objects to their users, and that they can apply sophisticated semantic optimization techniques before translating user queries into SQL.  In particular, we show, using Coq~\cite{coq:coq} as our ambient language, how to use dependent types to represent EDs, and how to use Coq tactics to implement a particular kind of semantic optimization: tableaux minimization, which minimizes the number of joins required by a query.  This paper is divided into two parts: the first part is a tutorial on tableaux minimization, and the second part is a Coq rendering of the first part. The full Coq development is available at {\sf github.com/gmalecha/semantic-query}.
+{\bf Contributions and Outline.} In this paper we demonstrate that dependently-typed language-integrated query systems (LINQs~\cite{monad}) that compile to SQL can expose data integrity constraints, in the guise of EDs, as first-class objects to their users, and that they can apply sophisticated semantic optimization techniques before translating user queries into SQL.  In particular, we show, using Coq~\cite{coq:coq} as our ambient language, how to use dependent equality types to represent EDs, and how to use Coq tactics to implement a particular kind of semantic optimization: tableaux minimization, which minimizes the number of joins required by a query.  This paper is divided into two parts: the first part is a tutorial on tableaux minimization, and the second part is a Coq rendering of the first part. The Coq development is available at {\sf github.com/gmalecha/semantic-query}.
+
+{\bf Related Work.} Most theoretical work on language-integrated query systems is done in a simply-typed setting~\cite{tannen:1992:NEQ:645500.655920}.  In practice, however, sophisticated type systems are often used to to facilitate the embedding of a query sublanguage into a general purpose programming language.  For example, labelled row types~\cite{mpj:jones1996a} can be used to embed DBMS records into a programming language, and the Opaleye library for Haskell uses the Arrow type-class to statically enforce the wellformedness of its SQL output~\cite{opaleye}.  Rarer still are dependently-typed embedded query languages: although Coq has been used to prove the correctness of certain database-related languages, data structures, and algorithms~\cite{DBLP:conf/popl/DelawarePGC15}~\cite{Malecha:2010:TVR:1706299.1706329}~\cite{coqdb}, none of this work is concerned with using Coq directly as an embedded query language as we are doing in this paper (i.e., these works use deep embeddings of query languages, whereas we use a shallow embedding).  
 
 \section{Queries}
 %For ease of exposition, in the first part of this paper we will assume we are working in a strongly-normalizing typed $\lambda$-calculus with first-class records, such as~\cite{mpj:jones1996a}.
@@ -85,13 +87,20 @@ The $\overrightarrow{(x \IN X)}$ are called {\it generators}.  A (conjunctive) {
  & & \RETURN R(\overrightarrow{x})
 \end{eqnarray*}
 \end{normalsize}
-{\bf Extensions.} We will only consider conjunctive queries in this paper, but many extensions to conjunctive queries have been studied in the literature~\cite{foundations}.  Two extensions are particularly important, because many results about semantic optimization, including tableaux minimization, hold for these extensions~\cite{Popa99anequational}:
+{\bf Extensions.} We will only consider relational conjunctive queries in this paper, but many extensions to conjunctive queries have been studied in the literature~\cite{foundations}.  Two extensions are particularly important, because many results about semantic optimization, including tableaux minimization, hold for these extensions~\cite{Popa99anequational}:
 \begin{itemize} 
 \item  It is possible to allow generators to be dependent, thereby allowing, for example, nested relations~\cite{Popa99anequational}:
 \begin{normalsize}
 $$ \FOR (g \IN Groups) \ (person \IN g) \ \ldots $$
 \end{normalsize}
-\item It is possible to interpret queries in {\it monad algebras}~\cite{755736}.  For example, it is possible to write a query to find the largest element of a set: 
+\item It is possible to interpret queries in arbitrary {\it monads with zeroes}, for example, the list monad or the bag monad.  However, the  optimization procedure described in this paper is only sound for monads that are commutative and idempotent~\cite{Popa99anequational}:
+$$
+\FOR (x \IN X)(y \IN Y)  \cong \FOR (y \IN Y) (x \IN X) 
+$$
+$$
+\FOR (x \IN X) \cong \FOR (x \IN X)(x' \IN X) 
+$$
+Such monads arise, for example, as power monads on topoi~\cite{BW}.  It is also possible to interpret queries in {\it monad algebras}~\cite{755736}.  For example, it is possible to write a query to find the largest element of a set: 
 \begin{normalsize}
 $$ \FOR (x \IN SomeSetOfInts) \ {\tt max} \ x $$
 \end{normalsize}
@@ -139,7 +148,7 @@ back(C) & := & \FOR \overrightarrow{(x \IN X)} \ \overrightarrow{(y \IN Y)} \\
 \end{normalsize}
 It is easy to establish~\cite{Popa99anequational} that for every $I$,
 $$I \models C \ \ \ \ \textnormal{iff} \ \ \ \  front(C)(I) = back(C)(I)$$
-In fact, in the second half of this paper, we will use a dependent equality type corresponding to the above as a type of witnesses proving that an ED holds in a particular instance.
+In fact, in the second half of this paper, we will use a dependent equality type corresponding to the above equation as a type of proofs that an ED holds in a particular instance.
 
 {\bf Notation.}  When two queries $Q_1$ and $Q_2$ give the same result on every instance, we write $Q_1 \cong Q_2$.  When $Q_1$ and $Q_2$ give the same result on every instance satisfying some set of EDs $C$, we write $C \vdash Q_1 \cong Q_2$.
 
@@ -275,9 +284,9 @@ $Q_2$.  Finally, the two ${\tt return}$ clauses are equal.  As such, the substit
 There is no homomorphism $Q_2 \to Q_1$, and hence $Q_1 \ncong Q_2$.  
 There are only two candidates: $m \mapsto m_1$ and $m \mapsto m_2$.  
 Neither works because neither of the  images of $Q_2$'s $\RETURN$ clause (neither 
-$\RETURN (m_1.{\sf director}, m_1.{\sf actor})$ nor $\RETURN (m_2.{\sf director}, m_2.
-{\sf actor})$) is equivalent to $Q_1$'s $\RETURN$ clause ($\RETURN (m_1.{\sf director}, 
-m_2.{\sf actor})$), even under the equality in $Q_1$ ($m_1.{\sf title} = m_2.{\sf 
+$\RETURN (m_1.{\sf director}, m_1.{\sf actor})$ nor $\RETURN (m_2.{\sf director},$ $m_2.
+{\sf actor})$) is equivalent to $Q_1$'s $\RETURN$ clause ($\RETURN (m_1.{\sf director},$ 
+$m_2.{\sf actor})$), even under the equality in $Q_1$ ($m_1.{\sf title} = m_2.{\sf 
 title}$). 
 
 %  Indeed, consider the instance:  
@@ -427,10 +436,10 @@ We wish to check that $C \vdash Q_1 \cong Q_2$, so we check that $U = chase(C,Q_
 of the equality $m_1.{\sf director}$ $=$ $m_2.{\sf director}$, which appears in $U$ 
 but not in $Q_1$.  There is also a homomorphism $U \to Q_2$, namely, $m_2 
 \mapsto m, m_1 \mapsto m$.  We thus conclude that $C \vdash U \cong Q_2 \cong Q_1$. 
-
+\newpage
 \subsection*{Example - Indexing}
 
-As we remarked in the introduction, a reasonably competent programmer might be able to optimize our $Movies$ query directly, without applying the chase at all.  But sometimes constraints are not available to the programmer, such as when indices are generated on the fly.  Consider the following query, which returns the names of all $People$ between 16 and 18 years old:
+As we remarked in the introduction, a reasonably competent programmer might be able to optimize our $Movies$ query directly, without applying the chase at all.  But sometimes constraints are not available to the programmer, such as when indices are generated dynamically.  Consider the following query, which returns the names of all $People$ between 16 and 18 years old:
 \begin{normalsize}
 \begin{eqnarray*}
 Q_1 & := & \FOR (p \IN People) \\
@@ -438,6 +447,8 @@ Q_1 & := & \FOR (p \IN People) \\
  & & \RETURN p.{\sf name}
 \end{eqnarray*}   
 \end{normalsize}
+Technically, this query is not a purely conjunctive query because the where clause involves the less-than predicate $<$.  However, the machinery of tableaux minimization can still be used, and one of the advantages of our Coq development is that users are free to write arbitrary Coq expressions in where clauses, and Coq tactics can be used to reason about such where clauses.
+  
 Depending on the underlying access patterns, or the whims of a database administrator, an RDBMS might transparently index $People$ by creating another relation $Children$, such that the following two constraints hold:
 \begin{normalsize}
 \begin{eqnarray*}
@@ -507,6 +518,9 @@ and no further steps with $C_1$ or $C_2$ are possible. Hence we have computed $Q
 \section{Coq Development - Overview}
 
 Stuff here
+
+
+{\bf Acknowledgement.}  The authors would like to thank Lucian Popa for answering many questions about semantic optimization.
 
 \bibliographystyle{plain}
 \bibliography{thesisbib}
