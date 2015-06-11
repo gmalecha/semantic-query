@@ -2,7 +2,7 @@ Require Import Coq.Bool.Bool.
 Require Import Coq.Classes.Morphisms.
 Require Import ExtLib.Data.Prop.
 Require Import ExtLib.Tactics.
-Require Import SemanticQuery.Shallow.
+Require Import SemanticQuery.DataModel.
 
 Definition Pred (T: Type) : Type := T -> Prop.
 

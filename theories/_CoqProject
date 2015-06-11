@@ -1,6 +1,6 @@
 -R ../coq-ext-lib/theories ExtLib
 -R . SemanticQuery
-Shallow.v
+DataModel.v
 ListModel.v
 PredModel.v
 ChaseShallow.v

@@ -1,5 +1,5 @@
 Require Import Coq.Lists.List.
-Require Import SemanticQuery.Shallow.
+Require Import SemanticQuery.DataModel.
 Require Import SemanticQuery.ChaseShallow.
 
 Set Implicit Arguments.

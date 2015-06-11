@@ -3,7 +3,7 @@ Require Import Coq.Strings.String.
 Require Import Coq.Classes.Morphisms.
 Require Import ExtLib.Data.Prop.
 Require Import ExtLib.Tactics.
-Require Import SemanticQuery.Shallow.
+Require Import SemanticQuery.DataModel.
 
 Set Implicit Arguments.
 Set Strict Implicit.
