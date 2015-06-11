@@ -2,7 +2,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.Strings.String.
 Require Import ExtLib.Data.String.
 Require Import ExtLib.Core.RelDec.
-Require Import SemanticQuery.Shallow.
+Require Import SemanticQuery.DataModel.
 Require Import SemanticQuery.LtacChase.
 
 Require Import Coq.Classes.Morphisms.
