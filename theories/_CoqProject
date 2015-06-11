@@ -6,3 +6,15 @@ PredModel.v
 ChaseShallow.v
 LtacChase.v
 DemoLtac.v
+
+Types.v
+Expr.v
+Tables.v
+RecordTableaux.v
+Entailer.v
+Chase.v
+Parsing.v
+HomomorphismSearch.v
+Minimize.v
+Demo.v
+

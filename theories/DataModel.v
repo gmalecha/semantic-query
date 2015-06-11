@@ -193,13 +193,13 @@ Section extras.
   Qed.
 
   Global Instance Proper_Mplus_eq {T U}
-  : Proper (Meq ==> Meq ==> Mimpl) (@Mplus T U).
+  : Proper (Meq ==> Meq ==> Meq) (@Mplus T U).
   Proof.
     unfold Mplus. do 3 red.
     intros.
-    eapply Proper_Mbind_eq. symmetry. eassumption.
+    eapply Proper_Mbind_eq. eassumption.
     red; intros.
-    eapply Proper_Mbind_eq. symmetry. eassumption.
+    eapply Proper_Mbind_eq. eassumption.
     red. reflexivity.
   Qed.
 

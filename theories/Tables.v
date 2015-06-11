@@ -6,7 +6,7 @@ Require Import ExtLib.Data.Member.
 Require Import ExtLib.Tactics.
 Require Import SemanticQuery.Types.
 Require Import SemanticQuery.Expr.
-Require Import SemanticQuery.Shallow.
+Require Import SemanticQuery.DataModel.
 
 Set Implicit Arguments.
 Set Strict Implicit.

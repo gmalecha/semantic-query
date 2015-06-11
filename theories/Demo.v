@@ -1,5 +1,6 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Strings.String.
+Require Import SemanticQuery.DataModel.
 Require Import SemanticQuery.Types.
 Require Import SemanticQuery.Expr.
 Require Import SemanticQuery.Tables.
@@ -8,6 +9,7 @@ Require Import SemanticQuery.Entailer.
 Require Import SemanticQuery.Chase.
 Require Import SemanticQuery.Minimize.
 Require Import SemanticQuery.Parsing.
+Require Import SemanticQuery.ListModel.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -18,6 +20,49 @@ Local Notation "#0" := (@MZ _ _ _).
 Local Notation "#1" := (@MN _ _ _ _ #0).
 Local Notation "#2" := (@MN _ _ _ _ #1).
 
+Require Import ExtLib.Core.RelDec.
+Fixpoint check_in {T} {Req : RelDec (@eq T)} x (a : list T) : bool :=
+  match a with
+  | nil => false
+  | a :: a' => if x ?[ eq ] a then true else check_in x a'
+  end.
+Fixpoint check_meq {T} {Req : RelDec (@eq T)} (a b : list T)
+  : bool :=
+  if List.forallb (fun x => check_in x b) a then
+    List.forallb (fun x => check_in x a) b
+  else
+    false.
+Lemma Meq_decide : forall {T} {Req : RelDec (@eq T)} {ReqOk : RelDec_Correct Req} (a b : list T),
+    check_meq a b = true ->
+    DataModel.Meq a b.
+Proof. Admitted.
+Instance RelDec_typeD {ts} : RelDec (@eq (typeD ts)) :=
+  { rel_dec := fun x y =>
+                 match val_dec x y with
+                 | left _ => true
+                 | right _ => false
+                 end }.
+Instance RelDec_Correct_row {ts} : RelDec_Correct (@RelDec_typeD ts).
+Proof. constructor.
+       unfold rel_dec. simpl. intros.
+       match goal with
+       | |- context [ match ?X with _ => _ end ] =>
+         destruct X
+       end; subst; try tauto.
+       split; auto.
+       congruence.
+Qed.
+Instance RelDec_hlist {ts} : RelDec (@eq (hlist typeD ts)).
+constructor.
+induction 1.
+{ refine (fun x => true). }
+{ refine (fun x => if f ?[ eq ] hlist_hd x then
+                     IHX (hlist_tl x)
+                   else false); eauto with typeclass_instances. }
+Defined.
+Instance RelDec_Correct_hlist {ts} : RelDec_Correct (@RelDec_hlist ts).
+Admitted.
+
 Module Movies.
   Local Open Scope string_scope.
 
@@ -26,7 +71,7 @@ Module Movies.
     (* director : *) String ::
     (* actor    : *) String :: nil.
 
-  Definition tbl_movies : table tt_movies :=
+  Definition tbl_movies : table list tt_movies :=
     (Row tt_movies ("Star Trek: Into Darkness", ("JJ Abrams", ("Benedict Cumberbatch", tt)))) ::
     (Row tt_movies ("Star Trek: Into Darkness", ("JJ Abrams", ("Chris Pine", tt)))) ::
     (Row tt_movies ("Stardust", ("Matthew Vaughn", ("Claire Danes", tt)))) ::
@@ -35,7 +80,7 @@ Module Movies.
 
   Definition scheme := List.map Tuple (tt_movies :: nil).
 
-  Definition movies_db : DB scheme.
+  Definition movies_db : DB list scheme.
     eapply Hcons.
     eapply tbl_movies.
     eapply Hnil.
@@ -63,10 +108,12 @@ Module Movies.
   Theorem title_implies_director_sound
   : embedded_dependencyD title_implies_director movies_db.
   Proof.
-    red. simpl.
-  Admitted.
+    red.
+    eapply Meq_decide.
+    vm_compute. reflexivity.
+  Qed.
 
-  Example ex1 : query scheme (String :: String :: nil).
+  Example ex1 : RecordTableaux.query scheme (String :: String :: nil).
   refine
     (@Build_query scheme (String :: String :: nil)
                       (QUERY scheme
@@ -78,11 +125,11 @@ Module Movies.
                    (Hcons (Expr.Proj (Expr.Var #1) #2) Hnil))).
   Defined.
 
-  Example universal_ex1 : query scheme (String :: String :: nil) :=
+  Example universal_ex1 : RecordTableaux.query scheme (String :: String :: nil) :=
     Eval vm_compute
     in get_status (chase (@check_entails) 2 (title_implies_director :: nil) ex1).
 
-  Example minimized_ex1 : query scheme (String :: String :: nil) :=
+  Example minimized_ex1 : RecordTableaux.query scheme (String :: String :: nil) :=
     Eval vm_compute
     in minimize (@check_entails) universal_ex1.
 
@@ -138,32 +185,14 @@ Module Indexing.
                   (Hcons (Expr.Proj (Expr.Var #0) #0) Hnil)).
   Defined.
 
+  Example universal_ex1 : RecordTableaux.query scheme (String :: nil) :=
+    Eval vm_compute
+    in get_status (chase (@check_entails) 2
+                         (children_are_people :: children_lt_21_person :: nil)
+                         ex1).
+
+  Example minimized_ex1 : RecordTableaux.query scheme (String :: nil) :=
+    Eval vm_compute
+    in minimize (@check_entails) universal_ex1.
+
 End Indexing.
-
-Module Simple.
-
-  Definition tt_names : row_type := Nat :: String :: nil.
-  Definition tt_manager : row_type := Nat :: Nat :: nil.
-
-  Definition tbl_names : table tt_names :=
-    (Row tt_names (0, ("Ryan"%string, tt))) ::
-    (Row tt_names (1, ("Gregory"%string, tt))) ::
-    nil.
-
-  Definition tbl_manager : table tt_manager :=
-    (Row tt_manager (1, (0, tt))) :: nil.
-
-  (** Example **)
-  Let scheme :=
-    List.map Tuple (
-    tt_names ::
-    tt_manager ::
-    nil).
-
-  Example ex1 : tableaux scheme :=
-    (QUERY scheme
-     USING ("x" <- 0 ;;
-            assert (Proj (Var "x") 0) == (Proj (Var "x") 0) ;;
-            Ret)).
-
-End Simple.

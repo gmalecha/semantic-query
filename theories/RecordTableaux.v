@@ -3,7 +3,7 @@ Require Import ExtLib.Tactics.
 Require Import SemanticQuery.Types.
 Require Import SemanticQuery.Expr.
 Require Import SemanticQuery.Tables.
-Require Import SemanticQuery.Shallow.
+Require Import SemanticQuery.DataModel.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -241,8 +241,25 @@ Section with_tables.
     rewrite Mbind_Mret. reflexivity.
   Qed.
 
+  Lemma hlist_get_hlist_get_Mret_impl_Mbind
+    : forall (tbl_data : DB M scheme)
+             ts2 (b2 : binds_type ts2) t (m : member t _),
+      Mimpl (Mbind (bindD b2 tbl_data)
+                   (fun x => (Mret (hlist_get m x))))
+            (hlist_get (hlist_get m b2) tbl_data).
+  Proof.
+    induction m; rewrite (hlist_eta b2); simpl.
+    { unfold Mplus. rw_M. simpl.
+      rewrite Mbind_perm. rw_M.
+      eapply Mbind_ignore. }
+    { rewrite <- (IHm (hlist_tl b2)); clear IHm.
+      rw_M. simpl.
+      rewrite Mbind_perm.
+      eapply Proper_Mbind_impl; try reflexivity.
+      red. intros.
+      eapply Mbind_ignore. }
+  Qed.
 
-(* TODO: The polymorphic proof is harder *)
   Lemma bindD_subset
     : forall ts1 (b1 : hlist (fun x => member x scheme) ts1)
              ts2 (b2 : hlist (fun x => member x scheme) ts2),
@@ -260,49 +277,25 @@ Section with_tables.
       rewrite <- IHb1; clear IHb1.
       { setoid_rewrite Mplus_Mmap_L.
         setoid_rewrite Mmap_compose. simpl.
-  Admitted.
-
-(*
-  Lemma bindD_subset
-    : forall ts1 (b1 : hlist (fun x => member x scheme) ts1)
-             ts2 (b2 : hlist (fun x => member x scheme) ts2),
-      forall tbl_data x,
-        In x (bindD b2 tbl_data) ->
-        forall (h : types_homomorphism ts1 ts2),
-          binds_homomorphism h b1 b2 ->
-          exists y,
-            related h y x /\
-            In y (bindD b1 tbl_data).
-  Proof.
-    induction b1.
-    { intros. exists Hnil.
-      simpl. split; eauto.
-      red. clear. intros. inversion m. }
-    { simpl. intros.
-      setoid_rewrite In_cross.
-      specialize (IHb1 _ _ _ _ H (fun t m => h t (MN _ m))).
-      match goal with
-      | H : ?X -> _ |- _ =>
-        cut X;
-          [ let H' := fresh in
-            intro H' ; specialize (H H') | ]
-      end.
-      { forward_reason.
-        exists (Hcons (hlist_get (h _ (MZ _ _)) x) x0).
-        split.
-        { red. intros.
-          destruct (member_case m).
-          { destruct H3. subst. simpl. reflexivity. }
-          { forward_reason. subst. simpl. eauto. } }
-        { do 2 eexists; split; eauto.
-          red in X. red in H0.
-          specialize (X l (MZ l ls)).
-          simpl in X. subst.
-          eauto using In_bindD_hlist_get. } }
-      { revert X. clear. unfold binds_homomorphism.
-        intros. eapply (X t (MN _ x)). } }
+        unfold Mmap. rw_M.
+        red in X.
+        rewrite Mbind_perm.
+        simpl.
+        generalize (X _ (@MZ _ _ _)); simpl; intro.
+        subst.
+        rewrite (@Mbind_dup M _ _ _ (bindD b2 tbl_data)
+                               (fun x : Env ts2 * Env ts2 =>
+                                  Mret
+                                    (Hcons (hlist_get (h l (MZ l ls)) (snd x))
+                                           (follow_types_homomorphism (types_homomorphism_rest h) (fst x))))).
+        simpl.
+        eapply Proper_Mbind_impl; try reflexivity.
+        red. intros.
+        rewrite <- hlist_get_hlist_get_Mret_impl_Mbind.
+        rw_M. reflexivity. }
+      { change b1 with (hlist_tl (Hcons f b1)).
+        eapply binds_homomorphism_rest. assumption. } }
   Qed.
-*)
 
   (** TODO: Move **)
   Lemma related_exprD_subst_expr
@@ -354,6 +347,24 @@ Section with_tables.
     { eassumption. }
   Qed.
 
+  Lemma related_follow_types_homomorphism
+    : forall (types0 types1 : list type)
+             (vars_mor0 : types_homomorphism types1 types0)
+             (a : Env types0) (t : type) (m : member t types1),
+      hlist_get m (follow_types_homomorphism vars_mor0 a) =
+      hlist_get (vars_mor0 t m) a.
+  Proof.
+    induction m; simpl; try reflexivity.
+    rewrite IHm. reflexivity.
+  Qed.
+
+  Lemma Mguard_impl : forall {T} (a b : bool) (m1 m2 : M T),
+      Bool.leb a b ->
+      (a = true -> Mimpl m1 m2) ->
+      Mimpl (Mguard a m1)
+            (Mguard b m2).
+  Proof. Admitted.
+
   Lemma homomorphism_subset ts
     : forall q1 q2,
       @query_homomorphism ts q2 q1 ->
@@ -363,44 +374,24 @@ Section with_tables.
     unfold queryD, tableauxD.
     destruct 1.
     intros.
-    repeat rewrite Mmap_Mbind.
-    repeat setoid_rewrite Mmap_Mguard.
-    repeat setoid_rewrite Mmap_Mret.
-    
-    SearchAbout Proper Mbind.
-    Instance Proper_Mbind_flip_impl:
-      forall {A B : Type},
-        Proper (Mimpl --> pointwise_relation A Mimpl --> Basics.flip Mimpl) (@Mbind M _ A B).
-    Proof.
-      intros. red. red. red. unfold Basics.flip.
-      intros. apply Proper_Mbind_impl; eauto.
-    Qed.
-    generalize (@bindD_subset _ _ _ _ tbls _ th0.(bindsOk)).
-
-    SearchAbout Mmap.
-    eapply List.in_map_iff in H.
-    eapply List.in_map_iff.
-    forward_reason.
-    eapply List.filter_In in H0.
-    setoid_rewrite List.filter_In.
-    forward_reason.
-    eapply bindD_subset in H0.
-    2: eapply bindsOk.
-    revert H0; instantiate (4 := th0); intro H0.
-    subst. forward_reason.
-    destruct th0; simpl in *.
-    exists x. split; [ | split ].
-    { rewrite <- retOk0 by eauto.
-      { destruct q2. simpl in *. clear - H.
-        destruct q1. simpl in *. clear - H.
-        destruct tabl0; destruct tabl1. simpl in *.
-        eauto using retD_related. } }
-    { assumption. }
-    { red in filterOk0. clear retOk0 bindsOk0.
-      eapply filterOk0 in H1.
-      rewrite <- H1.
-      destruct q2. simpl in *.
-      eapply related_filterD_subst_test; eauto. }
+    rw_M.
+    rewrite <- (@bindD_subset _ (binds (tabl q2)) _ _ tbls _ (bindsOk th0)).
+    rw_M.
+    eapply Proper_Mbind_impl; try reflexivity.
+    red. intros.
+    eapply Mguard_impl.
+    { destruct th0; simpl in *.
+      red. specialize (filterOk0 a).
+      destruct (filterD (filter (tabl q1)) a); auto.
+      rewrite <- filterOk0; auto.
+      eapply related_filterD_subst_test.
+      red.
+      eapply related_follow_types_homomorphism. }
+    { red in retOk0.
+      intros. rewrite <- retOk0 by eauto.
+      eapply Proper_Mret_impl.
+      erewrite <- retD_related; eauto.
+      red. eapply related_follow_types_homomorphism. }
   Qed.
 
   Theorem bihomomorphism_equal ts
@@ -408,9 +399,9 @@ Section with_tables.
       @query_homomorphism ts q1 q2 ->
       @query_homomorphism ts q2 q1 ->
       forall tbls,
-        list_set_equiv (queryD q1 tbls) (queryD q2 tbls).
+        Meq (queryD q1 tbls) (queryD q2 tbls).
   Proof.
-    unfold list_set_equiv. intros; eauto using homomorphism_subset.
+    red; intros; eauto using homomorphism_subset.
   Qed.
 
   (** Embedded Dependencies **)
@@ -423,28 +414,6 @@ Section with_tables.
   ; back_binds : binds_type back_types
   ; back_filter : filter_type (front_types ++ back_types)
   }.
-
-  (** TODO(gmalecha): I should make sure that I am being consistent about
-   ** the order of binders
-   **)
-  Definition embedded_dependencyD (ed : embedded_dependency)
-  : DB scheme -> Prop :=
-    let front :=
-        tableauxD {| types := ed.(front_types)
-                   ; binds := ed.(front_binds)
-                   ; filter := ed.(front_filter)
-                   |}
-    in
-    let back :=
-        let all := bindD ed.(back_binds) in
-        let keep := filterD ed.(back_filter) in
-        fun tbls base => List.filter keep (List.map (fun x => hlist_app base x) (all tbls))
-    in
-    fun tbls =>
-      forall res,
-        In res (front tbls) ->
-        exists val,
-          In val (back tbls res).
 
   Definition ed_front (ed : embedded_dependency) : tableaux :=
   {| types := ed.(front_types)
@@ -468,5 +437,11 @@ Section with_tables.
    ; binds := hlist_app ed.(front_binds) ed.(back_binds)
    ; filter := List.map (expr_subst (fun t x => member_weaken ed.(back_types) x)) ed.(front_filter) ++ ed.(back_filter)
    |}.
+
+  Definition embedded_dependencyD (ed : embedded_dependency)
+  : DB M scheme -> Prop :=
+    fun db => Meq (tableauxD (ed_front ed) db)
+                  (Mmap (fun x => fst (hlist_split _ _ x))
+                        (tableauxD (ed_back ed) db)).
 
 End with_tables.

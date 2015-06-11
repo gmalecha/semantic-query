@@ -2,6 +2,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.Classes.Morphisms.
 Require Import Coq.Bool.Bool.
 Require Import ExtLib.Tactics.
+Require Import SemanticQuery.DataModel.
 Require Import SemanticQuery.Types.
 Require Import SemanticQuery.Expr.
 Require Import SemanticQuery.Tables.
@@ -12,6 +13,8 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 Section with_scheme.
+  Variable M : Type -> Type.
+  Context {DM : DataModel M}.
   Variable scheme : list type.
 
   (** TODO: these should move **)
@@ -130,20 +133,22 @@ Section with_scheme.
   Lemma bindD_app
     : forall B (b : hlist _ B) A (a : hlist _ A),
       forall db,
-        bindD (scheme:=scheme) (hlist_app a b) db =
-        cross (@hlist_app _ _ _ _) (bindD a db) (bindD b db).
+        Meq (bindD (scheme:=scheme) (hlist_app a b) db)
+            (Mmap (fun xy => @hlist_app _ _ _ _ (fst xy) (snd xy))
+                  (Mplus (bindD a db) (bindD b db))).
   Proof.
     induction a; simpl.
-    { intros. rewrite app_nil_r.
-      rewrite map_id. reflexivity. }
-    { intros. rewrite IHa.
-      erewrite cross_assoc; reflexivity. }
+    { intros. unfold Mplus.
+      rw_M. reflexivity. }
+    { intros. rewrite IHa; clear IHa.
+      rw_M. reflexivity. }
   Qed.
-
 
   Lemma filterD_app
     : forall ts a b,
-      (eq ==> eq)%signature (filterD (ts:=ts) (a ++ b)) (fun x => filterD a x && filterD b x).
+      (eq ==> eq)%signature
+                 (filterD (ts:=ts) (a ++ b))
+                 (fun x => filterD a x && filterD b x).
   Proof.
     red. intros. subst.
     induction a; simpl; intros; auto.
@@ -151,6 +156,7 @@ Section with_scheme.
     destruct (exprD a y); reflexivity.
   Qed.
 
+(*
   Instance Proper_map {T U : Type} :
     Proper ((eq ==> eq) ==> eq ==> eq) (@map T U).
   Proof.
@@ -239,6 +245,7 @@ Section with_scheme.
     { rewrite andb_true_r. reflexivity. }
     { rewrite andb_false_r. reflexivity. }
   Qed.
+*)
 
   Lemma hlist_get_member_weaken_app
     : forall {T} F (X Y : list T) t (m : member t Y) y,
@@ -284,6 +291,7 @@ Section with_scheme.
     erewrite expr_weaken_app; reflexivity.
   Qed.
 
+(*
   Lemma filter_perm : forall {T} (f g : T -> bool) ls,
       List.filter f (List.filter g ls) = List.filter g (List.filter f ls).
   Proof.
@@ -359,9 +367,11 @@ Section with_scheme.
       auto. }
     { intros. rewrite H. auto. }
   Qed.
+*)
 
   (** TODO: Move **)
-
+  SearchAbout bindD binds_homomorphism.
+(*
   Lemma In_follow_types_homomorphism
     : forall vs vs' (vm : types_homomorphism vs vs') to from
              (bh : binds_homomorphism (scheme:=scheme) vm to from),
@@ -377,7 +387,9 @@ Section with_scheme.
       do 2 eexists; split; [ | split ]; eauto using In_bindD_hlist_get.
       eapply (IHto _ _ (binds_homomorphism_rest bh) db _ H). }
   Qed.
+*)
 
+  (** TODO: duplicated! **)
   Lemma related_follow_types_homomorphism
     : forall a b (vm : types_homomorphism a b),
       forall x,
@@ -495,10 +507,11 @@ Section with_scheme.
            (q : query scheme t)
            (c : embedded_dependency scheme)
            (h : tableaux_homomorphism (ed_front c) q.(tabl))
-           (db : DB scheme),
+           (db : DB M scheme),
       embedded_dependencyD c db ->
-      list_set_equiv (queryD q db) (queryD (@chase_step t q c h) db).
+      Meq (queryD q db) (queryD (@chase_step t q c h) db).
   Proof.
+(*
     destruct q; destruct c.
     unfold ed_front. simpl. unfold chase_step. simpl.
     unfold embedded_dependencyD, queryD, tableauxD; simpl.
@@ -563,7 +576,8 @@ Section with_scheme.
         eapply hlist_map_ext.
         intros. erewrite expr_weaken_app; [ | reflexivity ].
         rewrite hlist_split_hlist_app. reflexivity. } }
-  Qed.
+*)
+  Admitted.
 
   Variable check_entailment
   : forall (ts : list type) (ps : filter_type ts) (g : guard_type ts),
@@ -621,6 +635,7 @@ Section with_scheme.
       chaseK eds q (fun q => chase fuel eds q) (@Complete _)
     end.
 
+(*
   Instance Reflexive_list_set_equiv {T} : Reflexive (@list_set_equiv T).
   Proof. split; reflexivity. Qed.
 
@@ -629,6 +644,7 @@ Section with_scheme.
     red. destruct 1. destruct 1.
     split; etransitivity; eauto.
   Qed.
+*)
 
   Lemma chaseK_sound
   : forall (t : list type)
@@ -657,17 +673,17 @@ Section with_scheme.
   Theorem chase_sound
   : forall (t : list type)
            (eds : list (embedded_dependency scheme))
-           (db : DB scheme),
+           (db : DB M scheme),
       Forall (fun c => embedded_dependencyD c db) eds ->
       forall fuel (q : query scheme t),
-        list_set_equiv (queryD q db)
-                       (queryD (get_status (@chase fuel eds _ q)) db).
+        Meq (queryD q db)
+            (queryD (get_status (@chase fuel eds _ q)) db).
   Proof.
     induction fuel; simpl.
     { reflexivity. }
     { intros.
       eapply chaseK_sound
-        with (R := fun q1 q2 => list_set_equiv (queryD q1 db) (queryD q2 db)).
+        with (R := fun q1 q2 => Meq (queryD q1 db) (queryD q2 db)).
       { red. etransitivity; eauto. }
       { red. reflexivity. }
       { intros. eapply chase_step_sound.

@@ -1,13 +1,48 @@
 Require Import Coq.Lists.List.
+Require Import ExtLib.Tactics.
 Require Import SemanticQuery.Types.
 Require Import SemanticQuery.Expr.
 Require Import SemanticQuery.Tables.
+Require Import SemanticQuery.DataModel.
 Require Import SemanticQuery.RecordTableaux.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
+(** Cross-product of lists **)
+Fixpoint cross {T U V : Type} (f : T -> U -> V) (ts : list T) (us : list U)
+: list V :=
+  match ts with
+  | nil => nil
+  | t :: ts => List.map (f t) us ++ cross f ts us
+  end.
+
+Lemma In_cross : forall {T U V} (f : T -> U -> V) us ts,
+    forall x,
+      In x (cross f ts us) <->
+      exists t u,
+        In t ts /\ In u us /\ x = f t u.
+Proof.
+  induction ts; simpl; intros.
+  { split.
+    { inversion 1. }
+    { intros.
+      forward_reason. assumption. } }
+  { rewrite List.in_app_iff.
+    rewrite IHts; clear IHts.
+    rewrite in_map_iff.
+    split; intros; forward_reason.
+    { destruct H; forward_reason.
+      { subst. do 2 eexists; eauto. }
+      { do 2 eexists; eauto. } }
+    { destruct H; subst.
+      { left; eauto. }
+      { right. eauto. } } }
+Qed.
+
 Section with_schema.
+  Variable M : Type -> Type.
+  Context {DM : DataModel M}.
   Variables schema : list type.
 
   Fixpoint member_eq' {T} {a b : T} {ls} (m1 : member a ls) (m2 : member b ls)
@@ -191,7 +226,6 @@ Section with_schema.
                  | MN _ _ _ => fun _ _ _ _ _ X => X _ _
                  end m' th' m bs1 pf' bh').
 
-
     Fixpoint all_bind_homomorphisms {ts1 ts2}
              (b1 : hlist (fun x : type => member x schema) ts1)
              (b2 : hlist (fun x : type => member x schema) ts2)
@@ -199,16 +233,16 @@ Section with_schema.
            & binds_homomorphism h b1 b2 } :=
       match b1 in hlist _ ts1
             return list { h : types_homomorphism ts1 ts2
-                        & binds_homomorphism h b1 b2 }
+                     & binds_homomorphism h b1 b2 }
       with
       | Hnil => (@existT _ _ (types_homomorphism_nil ts2)
                          (@binds_homomorphism_nil ts2 _ Hnil b2)) :: nil
       | Hcons l ls m bs1 =>
         cross (fun (cur : {t' : member l ts2 | hlist_get t' b2 = m})
                    (rest : {h : types_homomorphism ls ts2 & binds_homomorphism h bs1 b2}) =>
-                 let '(exist m' pf') := cur in
-                 let '(existT th' bh') := rest in
-                 combine m' pf' bh')
+                let '(exist m' pf') := cur in
+                let '(existT th' bh') := rest in
+                combine m' pf' bh')
               (find_matching m b2)
               (all_bind_homomorphisms bs1 b2)
       end.
@@ -320,8 +354,6 @@ Section with_schema.
                           ; bindsOk := bm
                           ; filterOk := fh |}
                   end) xs.
-
-
 
   Definition find_query_homomorphisms {ts} (q1 q2 : query schema ts)
   : list (query_homomorphism q1 q2) :=
