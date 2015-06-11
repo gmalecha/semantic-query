@@ -39,15 +39,6 @@ Section Movies.
        Mbind db (fun y =>
        Mguard (x.(title) ?[ eq ] y.(title)) (Mret (x.(director),y.(actor))))).
 
-    Ltac rw_M :=
-      repeat first [ setoid_rewrite Mbind_assoc
-                   | setoid_rewrite Mbind_Mret
-                   | setoid_rewrite Mret_Mbind
-                   | setoid_rewrite Mbind_Mzero
-                   | setoid_rewrite Mmap_Mbind
-                   | setoid_rewrite Mbind_Mguard
-                   | setoid_rewrite <- Mbind_then_Mzero ].
-
     Theorem prep_for_normal
     : forall {T} (q : M T),
         Meq (Mbind (query (Mret tt) (fun _ => true) (fun x => x))

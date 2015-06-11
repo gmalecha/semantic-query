@@ -85,11 +85,11 @@ Section extras.
                  (fun x => fst x)).
 
   Global Instance Reflexive_Meq : forall {T}, Reflexive (@Meq M _ T).
-  Proof. Admitted.
+  Proof. red. red. split; reflexivity. Qed.
   Global Instance Symmetry_Meq : forall {T}, Symmetric (@Meq M _ T).
-  Proof. Admitted.
+  Proof. red. unfold Meq; tauto. Qed.
   Global Instance Transitive_Meq : forall {T}, Transitive (@Meq M _ T).
-  Proof. Admitted.
+  Proof. red. unfold Meq. intros. destruct H; destruct H0; split; etransitivity; eauto. Qed.
 
   Global Instance Proper_Mguard : forall {A},
     Proper (eq ==> Meq ==> Meq) (@Mguard M _ A).
@@ -286,3 +286,12 @@ Arguments Mdplus {M DM T U} _ _.
 Arguments Mplus {M DM T U} _ _.
 Arguments query {M DM S T} _ _ _.
 Arguments embedded_dependency {M DM S S'} _ _ _ _.
+
+Ltac rw_M :=
+  repeat first [ setoid_rewrite Mbind_assoc
+               | setoid_rewrite Mbind_Mret
+               | setoid_rewrite Mret_Mbind
+               | setoid_rewrite Mbind_Mzero
+               | setoid_rewrite Mmap_Mbind
+               | setoid_rewrite Mbind_Mguard
+               | setoid_rewrite <- Mbind_then_Mzero ].

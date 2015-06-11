@@ -12,6 +12,54 @@ Section chase.
   Variable M : Type -> Type.
   Context {DM : DataModel M}.
 
+  Lemma Mbind_Mguard_cont {T U : Type} (m : M T) (k : T -> M U) p
+  : Meq (Mbind m (fun x => Mguard p (k x)))
+        (Mguard p (Mbind m k)).
+  Proof. destruct p; simpl. reflexivity. rewrite <- Mbind_then_Mzero. reflexivity. Qed.
+
+  Instance Reflexive_leb : Reflexive leb.
+  Proof. red. red. destruct x; reflexivity. Qed.
+
+  Instance Transitive_leb : Transitive leb.
+  Proof. red. red. destruct x; simpl; auto. intros; subst. destruct z; auto. Qed.
+
+
+  Lemma duplicate {T} (m : M T)
+  : Meq m (Mbind m (fun _ => m)).
+  Proof.
+    split. 2: setoid_rewrite Mbind_ignore; reflexivity.
+    transitivity (Mbind m (fun _ => Mbind m Mret)).
+    rewrite <- Mbind_perm.
+    generalize (@Mbind_dup M _ T T m (fun x => Mret (fst x))).
+    simpl. intro. rewrite <- H.
+    rewrite Mret_Mbind. reflexivity.
+    setoid_rewrite Mret_Mbind. reflexivity.
+  Qed.
+
+  Definition Meqsat {T} (m m' : M T) : Prop :=
+    Meq (Mbind m (fun _ => Mret tt))
+        (Mbind m' (fun _ => Mret tt)).
+
+  Instance Reflexive_Meqsat {T} : Reflexive (@Meqsat T).
+  Proof. red. red. reflexivity. Qed.
+
+  Instance Transitive_Meqsat {T} : Transitive (@Meqsat T).
+  Proof. red. unfold Meqsat. intros. etransitivity; eassumption. Qed.
+
+  Lemma Mbind_ignore_eqsat {T U} (m1 m2 : M T) (k : M U)
+  : Meqsat m1 m2 ->
+    Meq (Mbind m1 (fun _ => k))
+        (Mbind m2 (fun _ => k)).
+  Proof.
+    unfold Meqsat.
+    intros.
+    transitivity (Mbind m1 (fun _ => Mbind (Mret tt) (fun _ => k))).
+    { setoid_rewrite Mbind_Mret. reflexivity. }
+    { setoid_rewrite <- Mbind_assoc. rewrite H.
+      rw_M. reflexivity. }
+  Qed.
+
+
 Theorem chase_sound_general {S S' T U}
 (* q  *) (P : M S) (C : S -> bool) (E : S -> T)
 (* ed *) (F : M S') (Gf : S' -> bool) (B : M U) (Gb : S' -> U -> bool) :
@@ -28,75 +76,26 @@ Theorem chase_sound_general {S S' T U}
 Proof.
   intros.
   transitivity (query P (fun x => C x && Gf (h x)) E).
-  { admit. (* unfold query, Mbind, Mret, Mguard, Mconcat, Mmap.
-    red. intro.
-    eapply exists_iff. intro.
-    eapply and_iff; [ | tauto ].
-    apply exists_iff. intro.
-    apply and_iff; try tauto.
-    intro.
-    specialize (fh x1).
-    destruct (C x1); simpl in *.
-    { specialize (fh eq_refl).
-      rewrite fh. tauto. }
-    { tauto. } *) }
+  { unfold query. clear - fh.
+    eapply Proper_Mbind_eq; try reflexivity.
+    red. intros. specialize (fh a).
+    destruct (C a); try reflexivity.
+    simpl. rewrite fh; reflexivity. }
   transitivity (query (Mplus P B)
                       (fun ab => C (fst ab) && Gf (h (fst ab)) && Gb (h (fst ab)) (snd ab))
                       (fun ab => E (fst ab))).
-  { admit. (* unfold query, Mplus in *.
-    repeat setoid_rewrite Mbind_assoc.
-    repeat setoid_rewrite Mbind_Mret. simpl.
-    repeat setoid_rewrite Mbind_assoc in edc.
-    repeat setoid_rewrite Mbind_Mret in edc. simpl in edc.
-    revert edc bh.
-    unfold Meq, Mimpl, Mbind, Mguard, Mret, Mconcat, Mmap, Mzero.
-    intros.
-    split.
-    { intros.
-      forward_reason.
-      specialize (edc (h x1)).
-      specialize (fh x1).
-      consider (C x1 && Gf (h x1)).
-      { intros. subst. subst.
-        destruct edc.
-        destruct H0.
-        { eexists. split.
-          exists (h x1).
-          split. eapply bh. eauto.
-          reflexivity.
-          eapply andb_true_iff in H1. destruct H1.
-          rewrite H1. reflexivity. }
-        { clear H2.
-          forward_reason. subst.
-          forward_reason. subst.
-          consider (Gf x0 && Gb x0 x2).
-          { intros. subst.
-            apply andb_true_iff in H3. destruct H3.
-            eexists. split.
-            eexists. split. 2: reflexivity.
-            2: simpl. eassumption.
-            eexists. split.
-            eexists. split. 2: reflexivity.
-            eassumption.
-            eapply andb_true_iff in H1.
-            destruct H1.
-            rewrite H1. rewrite H5. rewrite H4. simpl. reflexivity. }
-          { inversion 2. } } }
-      { intros; subst. inversion H0. } }
-    { intros.
-      forward_reason. subst.
-      forward_reason. subst.
-      consider (C x1 && Gf (h x1) && Gb (h x1) x2).
-      { intros; subst.
-        eapply andb_true_iff in H1. destruct H1.
-        eapply andb_true_iff in H1. destruct H1.
-        eexists. split.
-        eexists; split; [ eassumption | reflexivity ].
-        rewrite H1. rewrite H3. reflexivity. }
-      { inversion 2. } } *) }
-  { unfold query, Mplus.
-    repeat setoid_rewrite Mbind_assoc.
-    repeat setoid_rewrite Mbind_Mret. simpl.
+  { red in edc. unfold query, Mplus in *. revert edc.
+    rw_M. intros.
+    transitivity
+      (Mbind P (fun x => Mguard (C x) (Mbind (Mbind F (fun z => Mguard (Gf z) (Mret z))) (fun _ => Mret (E x))))).
+    { clear - bh fh. admit.
+    }
+    transitivity
+      (Mbind P (fun x => Mguard (C x) (Mbind (Mbind F (fun z => Mbind B (fun y => Mguard (Gf z) (Mguard (Gb z y) (Mret z))))) (fun _ => Mret (E x))))).
+    { setoid_rewrite H; clear H.
+      simpl. rw_M. setoid_rewrite Mguard_and. reflexivity. }
+    { clear - bh fh. admit. } }
+  { unfold query, Mplus. rw_M. simpl.
     eapply Proper_Mbind_eq; try reflexivity. red; intros.
     eapply Proper_Mbind_eq; try reflexivity. red; intros.
     eapply Proper_Mguard; try reflexivity.
