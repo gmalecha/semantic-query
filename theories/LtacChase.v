@@ -101,6 +101,33 @@ Section normalize_proofs.
     destruct (qg a); simpl; rw_M; try reflexivity.
   Qed.
 
+  Lemma normal_pull_dplus_ret_id
+    : forall {T U V W : Type} (qb : M T) qg x (y : _ -> _ -> M V),
+      Meq (Mbind (query qb qg (fun x => x))
+                 (fun val : T => Mbind (x val) (y val)))
+          (Mbind (query (Mdplus qb x) (fun x => qg (fst x)) (fun x => (fst x, snd x)))
+                 (fun val : T * W => y (fst val) (snd val))).
+  Proof.
+    unfold query, Mplus; intros. rw_M.
+    eapply Proper_Mbind_eq; try reflexivity.
+    red. intros. simpl.
+    destruct (qg a); simpl; rw_M; try reflexivity.
+  Qed.
+
+  Lemma normal_pull_dplus
+    : forall {T U V W : Type} (qb : M T) qg (qr : T -> U) x (y : _ -> _ -> M V),
+      Meq (Mbind (query qb qg qr)
+                 (fun val : U => Mbind (x val) (y val)))
+          (Mbind (query (Mdplus qb (fun y => x (qr y))) (fun x => qg (fst x)) (fun x => (qr (fst x), snd x)))
+                 (fun val : U * W => y (fst val) (snd val))).
+  Proof.
+    unfold query, Mplus; intros. rw_M.
+    eapply Proper_Mbind_eq; try reflexivity.
+    red. intros. simpl.
+    destruct (qg a); simpl; rw_M; try reflexivity.
+  Qed.
+
+
   Lemma normal_pull_guard_const
     : forall {T U V : Type} (qb : M T) qg (qr : T -> U) f (y : _ -> M V),
       Meq (Mbind (query qb qg qr)

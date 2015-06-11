@@ -46,6 +46,7 @@ Section Movies.
     Example normalized_ex1 :=
       Eval cbv beta iota zeta delta [ proj1_sig normalized_ex1' normalize_function ]
       in (proj1_sig normalized_ex1').
+    Print normalized_ex1.
 
     (** Chasing **)
     (*************)
@@ -92,9 +93,26 @@ Section Movies.
     Defined.
 
     Definition minimized_ex1 :=
-      Eval cbv beta iota zeta delta [ minimized_ex1' proj1_sig unconditional_transitive unconditional_simpl ]
+      Eval cbv beta iota zeta delta [ Mmap minimized_ex1' proj1_sig unconditional_transitive unconditional_simpl query Mguard ]
       in (proj1_sig minimized_ex1').
-    Print minimized_ex1. (** Not perfect, but pretty good **)
+
+    Eval cbv beta iota zeta delta [ Mmap minimized_ex1' proj1_sig unconditional_transitive unconditional_simpl query Mguard ]
+      in (proj1_sig minimized_ex1').
+    Print minimized_ex1.
+
+    Ltac finisher :=
+      match goal with
+      | |- { x : _ | Meq x ?X } =>
+        eexists ; symmetry ; try unfold X ;
+        unfold query, Mmap ; rw_M ; simpl ; reflexivity
+      end.
+
+    Definition finished_ex1 : { m : _ | Meq m minimized_ex1 }.
+    finisher.
+    Defined.
+
+    Eval cbv beta iota zeta delta [ Mmap finished_ex1 proj1_sig unconditional_transitive unconditional_simpl query Mguard ]
+      in (proj1_sig finished_ex1).
 
     Definition tbl_movies : M movie := makeM
       (Movie "Star Trek: Into Darkness" "JJ Abrams" "Benedict Cumberbatch" ::
@@ -106,3 +124,8 @@ Section Movies.
   End over_db.
 
 End Movies.
+
+Require Import SemanticQuery.ListModel.
+
+Time Eval vm_compute in (@ex1 list _ (@tbl_movies list _)).
+Time Eval vm_compute in (proj1_sig (@finished_ex1 list _ (@tbl_movies list _))).

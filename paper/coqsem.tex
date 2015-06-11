@@ -4,6 +4,23 @@
 \usepackage{amsmath}
 \usepackage{amsthm}
 \usepackage{stmaryrd}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{lstcoq}
+
+\lstset{ %
+  numberbychapter=false, %
+  language=coq, %
+%%  frame=lines, %
+  frameshape={yyy}{n}{n}{yyy}, %
+  framexleftmargin=-3pt,
+  framexrightmargin=-3pt,
+  numberstyle=\tiny, %
+  basicstyle=\footnotesize, %
+  captionpos=b,
+  numbersep=5pt,
+  xleftmargin=5pt,
+  xrightmargin=5pt}
 
 \usepackage[bookmarks=true,colorlinks=true, linkcolor=MidnightBlue, citecolor=cyan]{hyperref}
 
@@ -25,13 +42,15 @@
 \newcommand{\CONS}{{\tt Cons}}
 \newcommand{\NIL}{{\tt Nil}}
 
+\newcommand{\greg}[1]{\textcolor{blue}{GREG: #1}}
+
 \begin{document}
 
 \title{Using Dependent Types and Tactics to Enable Semantic Optimization of Language-Integrated Queries}
 
 \authorinfo{Gregory Malecha}{University of California at San Diego}{\sf gmalecha@eng.ucsd.edu} 
 
-\authorinfo{Ryan Wisnesky\titlenote{Work supported by ONR grant N000141310260 and AFOSR grant FA9550-14-1-0031}}{Massachusetts Institute of Technology}{\sf wisnesky@math.mit.edu} 
+\authorinfo{Ryan Wisnesky\titlenote{Work supported by ONR grant N000141310260 and AFOSR grant FA9550-14-1-0031}}{Massachusetts Institute of Technology}{\sf wisnesky@math.mit.edu}
 
 \date{\today}
 
@@ -517,7 +536,206 @@ and no further steps with $C_1$ or $C_2$ are possible. Hence we have computed $Q
 
 \section{Coq Development - Overview}
 
-Stuff here
+We now discuss how we use Coq to optimize queries.
+For expository purposes, we demonstrate the techniques using the movie example from section~\ref{sec:tableaux-minimization}.
+We can express the movie query in Gallina with the following code:
+\begin{coq}
+Def q : M (string * string) :=
+  m1 <- Movies ; m2 <- Movies ;
+  guard (m1.(title) = m2.(title)) ;
+  return (m1.(director), m2.(actor)).
+\end{coq}
+Here, \coqe{q} is the name of the query.
+To the right of the colon is the query's type, i.e. \coqe{M (string * string)} represents a relation (\coqe{M}) that contains values which are pairs of strings.
+
+The syntax draws its inspiration from Haskell's syntax for monadic computations.
+\coqe{<-} intuitively means \FOR, \coqe{guard} means \WHERE, and \coqe{return} means \RETURN.
+Note that while this query follows exactly the form prescribed by SQL, not all raw queries will strictly follow this form.
+For example, if we wish to re-focus the above query on the movie ``Lord of the Rings'' we could introduce an additional guard condition after ``binding'' \coqe{m1}.
+\begin{coq}
+Definition q_LOR : M (string * string) :=
+  m1 <- Movies ;
+  guard (m1.(title) = ``Lord of the Rings'') ;
+  m2 <- Movies ;
+  guard (m1.(title) = m2.(title)) ;
+  return (m1.(director), m2.(actor)).
+\end{coq}
+While this flexible syntax may make it easier to structure large queries, there are other benefits to it that we will see in Section~\ref{sec:low-level}.
+
+The focus of our work is on query optimization.
+Given the above query, we can ask Coq to optimize it using the following code.
+\begin{coq}
+Definition optimized_query
+: { q$_{opt}$ : M (string * string) | title_director_ed $\vdash$ q$_{opt}$ = q }.
+optimize.
+Defined.
+\end{coq}
+Again the first line declares the name of a term.
+Now, the the right of the colon we have a more interesting type, noteably a dependent one.
+This syntax represents a dependent pair of a query (\coqe{q$_{opt}$}) of type \coqe{M (string * string)} and a proof of the proposition to the right of the vertical bar.
+Namely, this proof carries around a witness that under the assumption that the \coqe{title_director_ed} is provable about the database, the meaning of \coqe{q$_{opt}$} is the same as the meaning of \coqe{q}.
+Since we with Coq to fill in this value for us, we end the definition with a period and use the ``tactic'' \coqe{optimize} to discharge fill in the appropriate value.
+The keyword \coqe{Defined} signals the end of the definition since \coqe{optimize} completely fills in the term.
+
+We can look at the result of the optimization by asking Coq to print the first component of the pair.
+\begin{coq}
+Eval ... in (proj1_sig optimized_query).
+(* = x <- Movies ; return (x.(director), x.(actor))
+ *   : M (string * string)
+ *)
+\end{coq}
+Here, ``...'' elide the reduction strategy which tells Coq which symbols to keep abstract during reduction and the \coqe{proj1_sig} simply forgets the proof component.
+
+\paragraph{Querying in Coq} While not necessarily a proxy for a real database, all of the queries are executable within Coq (our implementation uses an implementation of relations as lists which are quotiented to act as sets).
+Even on small examples (5 rows), the optimized implementation performs 2x faster than the non-optimized version.
+While a production database would likely do considerably faster (on considerably larger relations) it should be noted that the semantic optimization that we achieve in this example enables us to reduce the asymptotic running time \emph{in a fully verified way}.
+
+\subsection{Normalization}
+\label{sec:normalization}
+
+The first phase of our optimization pipeline normalizes queries into the \FOR...\WHERE...\RETURN structure presented in Section~\ref{sec:queries}.
+In Coq, we can define this structure as a function that takes the three pieces of the query and stitches them together into the full query.
+The definition is the following:
+\begin{coq}
+Definition query {S T: Type}
+  (P : M S) (C : S -> bool) (E : S -> T) : M T :=
+  Mbind P (fun x => Mguard (C x) (Mret (E x))).
+
+\end{coq}
+Here, \coqe{P} represents the \FOR-clause which generates the tableau,
+\coqe{C} represents the conditional \WHERE-clause, and \coqe{E} represents the \RETURN-clause.
+In our representation, we use \coqe{Mplus} to construct a relational cross-product of two ``binds.''
+Thus, the normalized form of our movies query is the following:
+\begin{coq}
+query (Mplus Movies Movies)
+      (fun x => (fst x).(title) ?[=] (snd x).(title))
+      (fun x => ((fst x).(director), (snd x).(actor)))
+\end{coq}
+
+In addition to generating this term, in order to fit into our fully-verified pipeline we must also guarantee that the transformation yields an equivalent query.
+Within our shallow encoding we can perform this normalization by incrementally applying proven theorems that witness the soundness of individual transformations.
+
+The process begins by asking Coq to generate a unification variable representing the final answer and using it to witness the answer.
+We are then left to solve the goal \coqe{Meq ?1 q}, which we solve using a set of theorems crafted to specifically match on goals of this form.
+\begin{coq}
+Theorem prep_for_normal : forall {T} (q q' : M T),
+  Meq q' (Mbind (query (Mret tt) (fun _ => true) (fun x => x))
+                       (fun _ => q)) ->
+  Meq q' q.
+Proof. ... Qed.
+\end{coq}
+When applied to the initial goal, the first theorem (\coqe{prep_for_normal}), produces a new goal where the right-hand-side of the equivalence now binds the empty query and then returns \coqe{q}.
+
+While not particularly insightful from a proof-theoretic point of view, this lays the groundwork for the remaining theorems to move components of \coqe{q} into the query.
+For example, \coqe{normal_pull_plus} moves a bind into the query.
+\begin{coq}
+Lemma normal_pull_plus
+: forall {T U V W : Type} (qb : M T) (qg : T -> bool) (qr : T -> U) x (y : _ -> _ -> M V),
+  Meq q'
+      (Mbind (query (Mplus qb x) (fun x => qg (fst x)) (fun x => (qr (fst x), snd x)))
+             (fun val : U * W => y (fst val) (snd val))).
+  Meq q'
+      (Mbind (query qb qg qr)
+             (fun val : U => Mbind x (y val))).
+Proof. ... Qed.
+\end{coq}
+Concretely, applying \coqe{normal_pull_plus} to the goal produced by \coqe{prep_for_normal} produces a new goal that has shrunk the size of the query to normalize (by ``removing'' a bind) and placing it in the \FOR-clause of the \coqe{query} definition.
+\begin{coq}
+show the goal?
+\end{coq}
+\greg{should I present these are rewriting lemmas instead? that is what they are in the actual code}
+
+The normalization process also includes lemmas for pulling \WHERE- and \RETURN-clauses.
+To handle nested structures such as \coqe{x <- (y <- Movies ; return y) ; return x} we preface the normalization step by rewriting with lemmas which flatten the query.
+For example \coqe{Mbind_assoc} (shown below) will convert the nested query above into \coqe{y <- Movies ; x <- return y ; return x}.
+\begin{coq}
+Lemma Mbind_assoc
+: forall (A B C : Type) (c1 : M A) (c2 : A -> M B)
+         (c3 : B -> M C),
+  Meq (Mbind (Mbind c1 c2) c3)
+      (Mbind c1 (fun x : A => Mbind (c2 x) c3))
+\end{coq}
+
+The main benefit (which we will see throughout the pipeline) is the ability to easily extend the transformations simply by proving relatively simple lemmas such as the ones above.
+For example, the above \coqe{normal_pull_plus} is not sufficient to handle nested queries where \coqe{x} could depend on the values that were previously bound.
+Normally, supporting this type of term manipulation would be quite painful since we would need to track the number of binders that we are under or generate fresh names.
+Instead, we can foist all of that complexity back onto Coq by phrasing the appropriate lemma and using Coq's higher-order unification to solve the problem for us.
+Using this technique, the generalization of \coqe{normal_pull_plus} to handle nested relations would be the following:
+\begin{coq}
+Lemma normal_pull_dplus_ret_id
+: forall {T U V W : Type} (qb : M T) qg x (y : _ -> _ -> M V),
+  Meq (Mbind (query qb qg (fun x => x))
+             (fun val : T => Mbind (x val) (y val)))
+      (Mbind (query (Mdplus qb x) (fun x => qg (fst x)) (fun x => (fst x, snd x)))
+             (fun val : T * W => y (fst val) (snd val))).
+Proof. ... Qed.
+\end{coq}
+
+The final result of normalization for the movies query is exactly the query presented in Section~\ref{sec:example}.
+In our syntax:
+\begin{coq}
+query (Mplus Movies Movies)
+      (fun x => (fst x).(title) ?[=] (snd x).(title))
+      (fun x => ((fst x).(director), (snd x).(actor)))
+\end{coq}
+
+\subsection{The Chase}
+\greg{we could try to support nested relations as well, but they have a complex goal structure}
+
+With a normalized query in hand, we begin chasing it using our embedded dependencies.
+The general approach is similar to that of normalization, we will use a ``prepping'' lemma to set up the goal into a form that we can automate and then use stepping lemmas to incrementally solve the goal one step at a time.
+
+\paragraph{Representing Embedded Dependencies}
+We first express the representation of embedded dependencies.
+Our definition is the standard one given in Section~\ref{sec:embedded-dependencies} and is encoded in the same way that we encode queries.
+\begin{coq}
+Definition embedded_dependency {S S': Type}
+  (F : M S) (Gf : S -> bool) (B : M S') (Gb : S -> S' -> bool) :=
+  Meq (query F Gf (fun x => x))
+      (query (Mbind F (fun x => Mbind B (fun y => Mret (x,y))))
+             (fun ab => Gf (fst ab) && Gb (fst ab) (snd ab))
+             (fun x => fst x)).
+\end{coq}
+
+\paragraph{Backtracking to Find a Morphism}
+With a representation of embedded dependencies in hand, first goal of the chase step is to find a tableau homomorphism from the query to the front of the embedded dependency.
+This step is inherently more complex than normalization because it involves a backtracking search.
+\greg{This is easier to do in Coq 8.5 with the new Ltac engine, I should check to see how it works out}
+
+
+
+\paragraph{Solving the Side-conditions}
+
+
+\paragraph{Traversing EDs}
+In general, we will be chasing using a set of embedded dependencies so our first step is to 
+
+
+
+\subsection{Minimization}
+
+\subsection{Scheduling}
+\greg{not finished but could be interesting and relatively simple}
+
+
+\subsection{Reflective Implementation}
+
+\section{Discussion}
+
+Performance evaluation (how long does it take to optimize)
+
+\subsection{Related \& Future Work}
+Fiat~\cite{deleware2015fiat}
+
+Chase in Coq~\cite{}
+
+MirrorCore~\cite{malecha2014thesis}
+
+computational reflection~\cite{}
+
+\section{Conclusions}
+
+
 
 
 {\bf Acknowledgement.}  The authors would like to thank Lucian Popa for answering many questions about semantic optimization.
