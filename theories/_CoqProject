@@ -4,4 +4,5 @@ Shallow.v
 ListModel.v
 PredModel.v
 ChaseShallow.v
+LtacChase.v
 DemoShallow.v
