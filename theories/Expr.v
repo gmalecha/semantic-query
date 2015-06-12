@@ -8,35 +8,35 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 (** Deeply embedded expressions **)
-Inductive expr (vars : list type) : type -> UU :=
+Inductive expr (vars : list type) : type -> Type@{UU} :=
 | Var : forall T, member T vars -> expr vars T
 | Proj : forall T r, expr vars (Tuple r) -> member T r -> expr vars T
 | Eq : forall T, expr vars T -> expr vars T -> expr vars Bool
 | Lt : expr vars Nat -> expr vars Nat -> expr vars Bool
 | Const : forall T, typeD T -> expr vars T.
 
-Definition Env : list type -> U := hlist typeD.
+Definition Env : list type -> Type@{U} := hlist typeD.
 Definition exprT (ls : list type) (T : Type) : Type :=
   Env ls -> T.
 
 Fixpoint exprD {vars} {t} (e : expr vars t)
 : exprT vars (typeD t) :=
   match e in expr _ t return exprT vars (typeD t) with
-  | Var _ m => hlist_get m
-  | Proj _ r e' f =>
-    let eD := @exprD vars (Tuple r) e' in
+  | Var m => hlist_get m
+  | Proj e' f =>
+    let eD := @exprD vars (Tuple _) e' in
     let fD := tuple_get typeD f in
     fun vs => fD (eD vs)
-  | Eq T l r =>
+  | Eq l r =>
     let lD := exprD l in
     let rD := exprD r in
-    let eqD := @val_dec T in
+    let eqD := @val_dec _ in
     fun vs => if eqD (lD vs) (rD vs) then true else false
   | Lt l r =>
     let lD := exprD l in
     let rD := exprD r in
     fun vs => if Compare_dec.lt_dec (lD vs) (rD vs) then true else false
-  | Const T v => fun _ => v
+  | Const _ T v => fun _ => v
   end.
 
 Fixpoint member_lift {T} {t : T} (vs vs' : list T) (m : member t vs')
@@ -49,28 +49,28 @@ Fixpoint member_lift {T} {t : T} (vs vs' : list T) (m : member t vs')
 Fixpoint expr_lift {T} vs vs' (e : expr vs' T) {struct e}
 : expr (vs ++ vs') T :=
   match e in expr _ T return expr (vs ++ vs') T with
-  | Var _ m => Var (member_lift _ m)
-  | Proj _ _ a b => Proj (expr_lift _ a) b
-  | Eq T a b => Eq (expr_lift _ a) (expr_lift _ b)
+  | Var m => Var (member_lift _ m)
+  | Proj a b => Proj (expr_lift _ a) b
+  | Eq a b => Eq (expr_lift _ a) (expr_lift _ b)
   | Lt a b => Lt (expr_lift _ a) (expr_lift _ b)
-  | Const T v => @Const _ T v
+  | Const _ T v => @Const _ T v
   end.
 
 Fixpoint member_weaken_app {T} {t : T} (vs vs' : list T) (m : member t vs')
   : member t (vs' ++ vs) :=
   match m in member _ vs' return member t (vs' ++ vs) with
-  | MZ _ => MZ _ _
-  | MN _ _ m => MN _ (member_weaken_app _ m)
+  | MZ _ _ => MZ _ _
+  | MN _ m => MN _ (member_weaken_app _ m)
   end.
 
 Fixpoint expr_weaken_app {T} vs vs' (e : expr vs' T) {struct e}
   : expr (vs' ++ vs) T :=
   match e in expr _ T return expr (vs' ++ vs) T with
-  | Var _ a => Var (member_weaken_app _ a)
-  | Proj _ _ a b => Proj (expr_weaken_app _ a) b
-  | Eq T a b => Eq (expr_weaken_app _ a) (expr_weaken_app _ b)
+  | Var a => Var (member_weaken_app _ a)
+  | Proj a b => Proj (expr_weaken_app _ a) b
+  | Eq a b => Eq (expr_weaken_app _ a) (expr_weaken_app _ b)
   | Lt a b => Lt (expr_weaken_app _ a) (expr_weaken_app _ b)
-  | Const T v => @Const _ T v
+  | Const _ T v => @Const _ T v
   end.
 
 Section _subst.
@@ -80,11 +80,11 @@ Section _subst.
   Fixpoint expr_subst  {T}
            (e : expr vars T) {struct e} : expr vars' T :=
     match e in expr _ T return expr vars' T with
-    | Var _ v => Var (f v)
-    | Proj _ _ v c => Proj (expr_subst v) c
-    | Eq T a b => Eq (expr_subst a) (expr_subst b)
+    | Var v => Var (f v)
+    | Proj v c => Proj (expr_subst v) c
+    | Eq a b => Eq (expr_subst a) (expr_subst b)
     | Lt a b => Lt (expr_subst a) (expr_subst b)
-    | Const T v => @Const _ T v
+    | Const _ T v => @Const _ T v
     end.
 End _subst.
 
@@ -106,7 +106,7 @@ Section member_eq.
     match m1 as m1 in member _ ls
           return forall m2, {m1 = m2} + {m1 <> m2}
     with
-    | MZ ls => fun m2 =>
+    | MZ _ ls => fun m2 =>
                 match m2 as m2 in member _ X
                       return match X as X return member t X -> Type with
                              | nil => fun _ => Empty_set
@@ -119,10 +119,10 @@ Section member_eq.
                                               {@MZ _ x xs <> m2}
                              end m2
                 with
-                | MZ _ => fun pf => left _
-                | MN _ _ _ => fun pf => right _
+                | MZ _ _ => fun pf => left _
+                | MN _ _ => fun pf => right _
                 end eq_refl
-    | MN l ls m1' => fun m2 =>
+    | @MN _ _ l ls m1' => fun m2 =>
                 match m2 as m2 in member _ X
                       return match X as X return member t X -> Type with
                              | nil => fun _ => Empty_set
@@ -134,8 +134,8 @@ Section member_eq.
                                             {@MN _ _ x xs m1' <> m2}
                              end m2
                 with
-                | MZ _ => fun _ _ => right _
-                | MN _ _ m2' => fun _ rec =>
+                | MZ _ _ => fun _ _ => right _
+                | MN _ m2' => fun _ rec =>
                                   match rec m2' with
                                   | left pf => left (f_equal _ pf)
                                   | right pf => right _

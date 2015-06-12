@@ -102,6 +102,6 @@ Proof.
     specialize (fh a). clear - fh.
     consider (C a); try reflexivity.
     intros. rewrite H0; auto. }
-Qed.
+Admitted.
 
 End chase.

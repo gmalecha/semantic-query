@@ -405,7 +405,7 @@ Ltac find_bind_morphism continue :=
             end
           | fail 2 ]
   | |- Mimpl _ _ /\ _ =>
-    (** Here I should have somethign that is atomic **)
+    (** Here I should have something that is atomic **)
     first [ simple eapply pick_here_search ; find_bind_morphism continue
           | simple eapply pick_left_search ; find_bind_morphism continue
           | simple eapply pick_right_search ; find_bind_morphism continue
@@ -433,8 +433,8 @@ Ltac chase_ed solver m :=
   try unfold m ;
   match goal with
   | |- _ -> Meq ?pre ?post =>
-    first [ refine (@chase_sound_apply_ed_tt _ _ _ _ _ _ _ _ _ _ _ _ _)
-          | eapply (@chase_sound_apply _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) ] ;
+    first [ refine (@chase_sound_apply_ed_tt _ _ _ _ _ _ _ _ _ _ _ _ _) ; [ shelve | ]
+          | refine (@chase_sound_apply _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) ; [ shelve | ] ] ;
       find_bind_morphism
         ltac:(first [ assert (Meq pre post) ;
                       [ try unfold pre ; try unfold post ; split ; prove_query_morphism solver
@@ -561,22 +561,22 @@ Ltac solve_conclusion :=
   try reflexivity ;
   match goal with
   | |- ?X = _ (@pair ?T ?U ?x ?y) =>
-    match X with
-    | @?X' x =>
-      change X with ((fun xy : _ * _ => X' (fst xy) (snd xy)) (x,y))
-    | _ =>
-      let X' := eval pattern x in X in
-      match X' with
-      | ?F _ =>
-        let F' := eval pattern y in F in
-        match F' with
-        | ?F' _ =>
-          let F' := eval cbv beta in (fun xy : T * U => F' (fst xy) (snd xy)) in
-          change X with (F' (x,y))
-        end
+    let X' := eval pattern x in X in
+    match X' with
+    | ?F _ =>
+      let F' := eval pattern y in F in
+      match F' with
+      | ?F' _ =>
+        let F' := eval cbv beta in (fun xy : T * U => F' (fst xy) (snd xy)) in
+        change X with (F' (x,y))
       end
     end
-  end ; reflexivity.
+  end ;
+  match goal with
+  | |- ?X ?Y = ?Z ?Y =>
+    let x := constr:(@eq_refl _ X : X = Z) in
+    reflexivity
+  end.
 
 Ltac minimize solver :=
   (** TODO: This is sub-optimal **)

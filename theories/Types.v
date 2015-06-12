@@ -5,8 +5,8 @@ Require Import ExtLib.Data.Member.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Let UU : Type := Type.
-Let U : UU := Type.
+Universe UU.
+Universe U.
 
 Inductive type :=
 | Nat
@@ -15,8 +15,8 @@ Inductive type :=
 | Tuple : list type -> type.
 
 Section mp.
-  Variable f : type -> U.
-  Fixpoint tuple (ls : list type) : U :=
+  Variable f : type -> Type@{U}.
+  Fixpoint tuple (ls : list type) : Type@{U} :=
     match ls with
     | nil => unit
     | List.cons l ls => (f l) * (tuple ls)
@@ -24,15 +24,15 @@ Section mp.
 
   Fixpoint tuple_get {ls} {t} (m : member t ls) : tuple ls -> f t :=
     match m in member _ ls return tuple ls -> f t with
-    | MZ _ => fst
-    | MN _ _ m' =>
+    | MZ _ _ => fst
+    | MN _ m' =>
       let get := tuple_get m' in
       fun rows => get (snd rows)
     end.
 End mp.
 
-Fixpoint typeD (t : type) : U :=
-  match t return U with
+Fixpoint typeD (t : type) : Type@{U} :=
+  match t return Type@{U} with
   | Nat => nat
   | Bool => bool
   | String => String.string
@@ -81,7 +81,7 @@ Defined.
 Fixpoint val_dec {t : type} {struct t}
 : forall (l r : typeD t), {l = r} + {l <> r} :=
   match t as t return forall (l r : typeD t), {l = r} + {l <> r} with
-  | Nat => NPeano.Nat.eq_dec
+  | Nat => PeanoNat.Nat.eq_dec
   | Bool => bool_eq_dec
   | String => String.string_dec
   | Tuple ls =>

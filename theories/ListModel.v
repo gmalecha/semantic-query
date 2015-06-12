@@ -22,6 +22,8 @@ Fixpoint FSet_cross {T U : Type} (ts : FSet T) (f : T -> FSet U)
 Definition FSet_subset {T} (a b : FSet T) : Prop :=
   forall x, List.In x a -> List.In x b.
 
+Axiom todo : forall {T: Type}, T.
+
 Instance DataModel_FSet : DataModel FSet :=
 { Mret := @FSet_singleton
 ; Mzero := @FSet_empty
@@ -29,22 +31,22 @@ Instance DataModel_FSet : DataModel FSet :=
 ; Mimpl := @FSet_subset
 ; makeM := fun _ x => x
 }.
-admit.
-admit.
-admit.
-admit.
-admit.
-admit.
-admit.
-admit.
+exact todo.
+exact todo.
+exact todo.
+exact todo.
+exact todo.
+exact todo.
+exact todo.
+exact todo.
 { intros. red. intros.
   induction x.
   { inversion H. }
   { simpl in H.
     eapply List.in_app_iff in H. destruct H; auto. } }
-admit.
-admit.
-admit.
+exact todo.
+exact todo.
+exact todo.
 Defined.
 
 (*
