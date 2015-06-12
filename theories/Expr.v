@@ -142,23 +142,23 @@ Section member_eq.
                                   end
                 end m1' (member_eq _ m1')
     end.
-    refine (@K_dec _ Tdec _ (fun pf => MZ t ls1 =
-                                       match pf in (_ = X) return (member X (t :: ls1)) with
-                                       | eq_refl => MZ t ls1
+    refine (@K_dec _ Tdec _ (fun pf => MZ t l =
+                                       match pf in (_ = X) return (member X (t :: l)) with
+                                       | eq_refl => MZ t l
                                        end) eq_refl pf).
     destruct pf. clear.
     intro.
     refine match H in _ = X return match X with
-                                   | MN _ _ _ => False
-                                   | MZ _ => True
+                                   | MN _ _ => False
+                                   | MZ _ _ => True
                                    end
            with
            | eq_refl => I
            end.
     clear. intro.
     refine match H in _ = X return match X with
-                                   | MN _ _ _ => True
-                                   | MZ _ => False
+                                   | MN _ _ => True
+                                   | MZ _ _ => False
                                    end
            with
            | eq_refl => I
@@ -173,11 +173,11 @@ End member_eq.
 Inductive Expr_ctor : Type := EVar | EProj | EEq | ELt | EConst.
 Definition ctor_for {ts t} (e : expr ts t) : Expr_ctor :=
   match e with
-  | Eq _ _ _ => EEq
+  | Eq _ _ => EEq
   | Lt _ _ => ELt
-  | Var _ _ => EVar
-  | Proj _ _ _ _ => EProj
-  | Const _ _ => EConst
+  | Var _ => EVar
+  | Proj _ _ => EProj
+  | Const _ _ _ => EConst
   end.
 Definition f_apply {T U} (f : T -> U) (a b : T) (pf : a = b) : f a = f b :=
   match pf in _ = t return f a = f t with
@@ -227,7 +227,7 @@ Proof.
                 return match t in expr _ Z
                              return member Z ts -> Prop
                        with
-                       | Var x mx => fun m1 => m1 = mx
+                       | Var mx => fun m1 => m1 = mx
                        | _ => fun _ => True
                        end m1
           with
@@ -248,7 +248,7 @@ Proof.
   intros.
   inversion H. exists (eq_sym H1).
   admit.
-Defined.
+Admitted.
 
 Lemma Injective_Eq : forall ts T T' (a b : expr ts T) (c d : expr ts T'),
     Eq a b = Eq c d ->
@@ -262,7 +262,7 @@ Lemma Injective_Eq : forall ts T T' (a b : expr ts T) (c d : expr ts T'),
 Proof.
   intros. inversion H. exists (eq_sym H1).
   admit.
-Defined.
+Admitted.
 
 Lemma Injective_Lt : forall ts (a b : expr ts Nat) (c d : expr ts Nat),
     Lt a b = Lt c d ->
@@ -276,6 +276,18 @@ Lemma Injective_Const : forall ts T v v',
     v = v'.
 Proof. Admitted.
 
+Definition UIP_type (a : type) (pf : a = a) : pf = eq_refl.
+Proof.
+  refine (K_dec _ (fun x => x = eq_refl) eq_refl pf).
+  intros. destruct (type_dec x y); auto.
+Defined.
+
+Definition UIP_list_type (a : list type) (pf : a = a) : pf = eq_refl.
+Proof.
+  refine (K_dec _ (fun x => x = eq_refl) eq_refl pf).
+  intros. destruct (list_eq_dec type_dec x y); auto.
+Defined.
+
 Section expr_eq.
   Context {vs : list type}.
 
@@ -284,11 +296,11 @@ Section expr_eq.
       (match a as a in expr _ T
              return forall b : expr vs T, {a = b} + {a <> b}
        with
-       | Var _ m1 => fun b =>
+       | Var m1 => fun b =>
                        match b as b in expr _ T
                              return forall m1, {Var m1 = b} + {Var m1 <> b}
                        with
-                       | Var _ m2 => fun m1 =>
+                       | Var m2 => fun m1 =>
                                        match member_eq type_dec m1 m2 with
                                        | left pf => left match pf in _ = t return _ = _ with
                                                          | eq_refl => eq_refl
@@ -297,14 +309,14 @@ Section expr_eq.
                                        end
                        | _ => fun _ => right _
                        end m1
-       | Proj x y e1 f1 => fun b : expr vs x =>
+       | @Proj _ x y e1 f1 => fun b : expr vs x =>
                              match b as b in expr _ T
                                    return forall (e1 : expr vs (Tuple y)) f1,
                                  (forall e2, {e1 = e2} + {e1 <> e2}) ->
                                  {@Proj _ T y e1 f1 = b} +
                                  {Proj e1 f1 <> b}
                              with
-                             | Proj x' y' e2 f2 => fun e1 f1 rec =>
+                             | @Proj _ x' y' e2 f2 => fun e1 f1 rec =>
                                                      match List.list_eq_dec type_dec y' y with
                                                      | left pf =>
                                                        match rec match pf in _ = t return expr _ (Tuple t) with
@@ -326,7 +338,7 @@ Section expr_eq.
                                                      end
                              | _ => fun _ _ _ => right _
                              end e1 f1 (@expr_eq _ e1)
-       | Eq T1 l1 r1 => fun b : expr vs Bool =>
+       | @Eq _ T1 l1 r1 => fun b : expr vs Bool =>
                           match b as b in expr _ T'
                                 return match T' as T' return expr vs T' -> Type with
                                        | Bool => fun b => forall T1 (l1 r1 : expr vs T1),
@@ -336,7 +348,7 @@ Section expr_eq.
                                        | _ => fun _ => unit
                                        end b
                           with
-                          | Eq T2 l2 r2 => fun T1 l1 r1 recL recR =>
+                          | @Eq _ T2 l2 r2 => fun T1 l1 r1 recL recR =>
                                              match type_dec T2 T1 with
                                              | left pf =>
                                                match recL match pf in _ = t return expr _ t with
@@ -372,16 +384,16 @@ Section expr_eq.
                                                   end
                                      | right _ => right _
                                      end
-                     | Eq _ _ _ => fun _ _ _ _ => right _
+                     | Eq _ _ => fun _ _ _ _ => right _
                      | _ => _
                      end l r (expr_eq _ l) (expr_eq _ r)
-       | Const T v => fun b : expr vs T =>
+       | Const _ T v => fun b : expr vs T =>
                         match b as b in expr _ T'
                               return forall v : typeD T', 
                             {@Const _ T' v = b} +
                             {@Const _ T' v <> b}
                         with
-                        | Const _ v => fun v' => match val_dec v v' with
+                        | Const _ _ v => fun v' => match val_dec v v' with
                                                  | left pf => left _
                                                  | right pf => right _
                                                  end
@@ -392,19 +404,21 @@ Section expr_eq.
     { intro pf'. apply pf. apply Injective_Var. apply pf'. }
     { subst. reflexivity. }
     { intro. eapply Injective_Proj in H. destruct H as [ ? [ ? ? ] ]. subst.
-      clear - n. admit. }
+      clear - n.
+      rewrite (UIP_list_type x0) in n. auto. }
     { clear - n. subst. intro.
       eapply Injective_Proj in H. apply n.
       destruct H as [ ? [ ? ? ] ].
-      clear - H. admit. }
+      clear - H. rewrite (UIP_list_type x) in H. assumption. }
     { clear - pf.
       intro. eapply Injective_Proj in H.
       destruct H; auto. }
     { clear.
-      destruct T0; try exact tt.
-      intros; admit. }
+      destruct t; try exact tt.
+      intros.
+      right. eapply not_Eq. compute. congruence. }
     { clear.
-      destruct T0; try exact tt.
+      destruct t; try exact tt.
       intros. right.
       eapply not_Eq. compute. congruence. }
     { subst. reflexivity. }
@@ -412,30 +426,31 @@ Section expr_eq.
       intro.
       eapply Injective_Eq in H.
       destruct H as [ ? [ ? ? ] ].
-      admit. }
+      apply n.
+      rewrite (UIP_type x) in H0. assumption. }
     { subst. clear - n.
       intro. eapply Injective_Eq in H.
       destruct H as [ ? [ ? ? ] ].
       apply n. clear - H.
-      admit. }
+      rewrite (UIP_type x) in H. assumption. }
     { clear - n.
       intro. eapply Injective_Eq in H.
       destruct H. auto. }
     { intros. right.
       clear. eapply not_Eq. simpl. congruence. }
-    { destruct T0; try exact tt.
+    { destruct t; try exact tt.
       intros. right.
       eapply not_Eq. simpl. congruence. }
-    { destruct T0; try exact tt.
+    { destruct t; try exact tt.
       intros; right.
       eapply not_Lt. simpl. congruence. }
-    { destruct T0; try exact tt.
+    { destruct t; try exact tt.
       intros; right.
       eapply not_Lt. simpl. congruence. }
     { subst. reflexivity. }
     { intro. apply Injective_Lt in H. destruct H. auto. }
     { intro. apply Injective_Lt in H. destruct H. auto. }
-    { destruct T0; try exact tt.
+    { destruct t; try exact tt.
       intros; right.
       eapply not_Lt. simpl. congruence. }
     { subst. reflexivity. }

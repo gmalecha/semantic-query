@@ -40,7 +40,7 @@ Section with_tables.
   : DB M scheme -> M (hlist typeD ts) :=
     match names in hlist _ ts return DB M scheme -> M (hlist typeD ts) with
     | Hnil => fun _ => Mret Hnil
-    | Hcons _ _ n names => fun tbls =>
+    | Hcons n names => fun tbls =>
                              Mmap (fun x => Hcons (fst x) (snd x))
                                   (Mplus (hlist_get n tbls) (bindD names tbls))
     end.
@@ -424,8 +424,8 @@ Section with_tables.
   Fixpoint member_weaken {T} {ls : list T} {x} ls' (m : member x ls)
   : member x (ls ++ ls') :=
     match m in member _ ls return member x (ls ++ ls') with
-    | MZ _ => MZ _ _
-    | MN _ _ m' => MN _ (member_weaken ls' m')
+    | MZ _ _ => MZ _ _
+    | MN _ m' => MN _ (member_weaken ls' m')
     end.
 
   Fixpoint filter_weaken vars rt

@@ -45,8 +45,8 @@ Section with_scheme.
                                   member t (_x :: xs) + member t xs'
                                 end
                    with
-                   | MZ _ => fun pf => inl (MZ _ _)
-                   | MN _ ls m' => fun pf =>
+                   | MZ _ _ => fun pf => inl (MZ _ _)
+                   | MN ls m' => fun pf =>
                      let m' := match pf in _ = X
                                      return match X return Type with
                                             | nil => Empty_set

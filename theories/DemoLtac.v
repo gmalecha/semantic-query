@@ -80,7 +80,7 @@ Section Movies.
     Defined.
 
     Definition universal_ex1 :=
-      Eval cbv beta zeta delta [ universal_ex1' proj1_sig conditional_transitive conditional_reflexive ]
+      Eval cbv beta zeta delta [ universal_ex1' proj1_sig conditional_transitive conditional_simpl ]
       in (proj1_sig universal_ex1').
 
     Eval unfold universal_ex1 in universal_ex1.
@@ -100,12 +100,8 @@ Section Movies.
       in (proj1_sig minimized_ex1').
     Print minimized_ex1.
 
-    Ltac finisher :=
-      match goal with
-      | |- { x : _ | Meq x ?X } =>
-        eexists ; symmetry ; try unfold X ;
-        unfold query, Mmap ; rw_M ; simpl ; reflexivity
-      end.
+    (** Finishing **)
+    (***************)
 
     Definition finished_ex1 : { m : _ | Meq m minimized_ex1 }.
     finisher.
@@ -113,6 +109,23 @@ Section Movies.
 
     Eval cbv beta iota zeta delta [ Mmap finished_ex1 proj1_sig unconditional_transitive unconditional_simpl query Mguard ]
       in (proj1_sig finished_ex1).
+
+    (** TODO: This is incomplete **)
+    Ltac optimize solver :=
+      lazymatch goal with
+      | |- { x : _ | Meq x ?X } =>
+        normalize ;
+        minimize solver ;
+        finisher
+      | |- { x : _ | _ -> Meq x ?X } =>
+        normalize ;
+        chase solver ;
+        minimize solver ;
+        finisher
+      end.
+
+    Definition optimized : { m : _ | EdsSound (title_implies_director :: nil) -> Meq m ex1 }.
+    Abort.
 
     Definition tbl_movies : M movie := makeM
       (Movie "Star Trek: Into Darkness" "JJ Abrams" "Benedict Cumberbatch" ::

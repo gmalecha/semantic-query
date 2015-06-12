@@ -20,9 +20,9 @@ Section with_schema.
   : list (member t ts) :=
     match bt in hlist _ ts return list (member t ts) with
     | Hnil => nil
-    | Hcons l ls m' bt' =>
+    | @Hcons _ _ l ls m' bt' =>
       match HomomorphismSearch.member_eq' m' m with
-      | Some (exist pf _) => match eq_sym pf in _ = t return member t (l :: ls) with
+      | Some (@exist _ _ pf _) => match eq_sym pf in _ = t return member t (l :: ls) with
                              | eq_refl => @MZ _ l ls
                              end :: nil
       | None => nil
@@ -41,8 +41,7 @@ Section with_schema.
   Fixpoint remove {t} (ts ts' : list type)
            (binds : binds_type scheme ts) (binds' : binds_type scheme ts')
            {struct binds'}
-  : filter_type (ts ++ ts') -> ret_type (ts ++ ts') t -> query scheme t.
-  refine
+  : filter_type (ts ++ ts') -> ret_type (ts ++ ts') t -> query scheme t :=
     match binds' in hlist _ ts'
           return filter_type (ts ++ ts') -> ret_type (ts ++ ts') t ->
                  query scheme t
@@ -56,48 +55,45 @@ Section with_schema.
                             ; filter := fs
                             |}
                  ; ret := rt |}
-    | Hcons l ls m binds' => fun fs rt =>
+    | @Hcons _ _ l ls m binds'' => fun fs rt =>
+      let check m0 :=
+          let esubst t m := @expr_subst _ _ (member_map_app
+                                               (fun _ x => x)
+                                               (fun t (m : member t (l :: ls)) =>
+                                                  match m in member _ x
+                                                        return match x with
+                                                               | nil => unit
+                                                               | a :: b => member a b -> member _ _ 
+                                                               end
+                                                  with
+                                                  | MZ _ _ => fun X => X
+                                                  | MN _ X => fun _ => X
+                                                  end m0)) t m in
+          let fs' := filter_subst (esubst Bool) fs in
+          let rt' := hlist_map esubst rt in
+          let q  := {| tabl := {| binds := hlist_app binds (Hcons m binds'')
+                                  ; filter := fs |}
+                       ; ret  := rt |} in
+          let q' := {| tabl := {| binds := hlist_app binds binds''
+                                  ; filter := fs' |}
+                       ; ret  := rt' |} in
+          if query_equiv check_entailment q q' then
+            Some (fs', rt')
+          else
+            None
+      in
       match
-        first_of _ (find_candidates m binds')
+        first_of check (find_candidates m binds'')
       with
       | None => match app_ass_trans ts (l :: nil) ls in _ = X
                       return filter_type X -> ret_type X t -> query scheme t
                 with
                 | eq_refl => @remove _ (ts ++ l :: nil) ls (hlist_app binds (Hcons m Hnil))
-                                     binds'
+                                     binds''
                 end fs rt
-      | Some x => _
+      | Some x => @remove _ ts ls binds binds'' (fst x) (snd x)
       end
     end.
-  (* replace all occurances of m with m0 **)
-  refine
-    (fun m0 =>
-       let esubst t m := @expr_subst _ _ (member_map_app
-                            (fun _ x => x)
-                            (fun t (m : member t (l :: ls)) =>
-                               match m in member _ x
-                                     return match x with
-                                            | nil => unit
-                                            | a :: b => member a b -> member _ _ 
-                                            end
-                               with
-                               | MZ _ => fun X => X
-                               | MN _ _ X => fun _ => X
-                               end m0)) t m in
-     let fs' := filter_subst (esubst Bool) fs in
-     let rt' := hlist_map esubst rt in
-     let q  := {| tabl := {| binds := hlist_app binds (Hcons m binds'0)
-                           ; filter := fs |}
-                ; ret  := rt |} in
-     let q' := {| tabl := {| binds := hlist_app binds binds'0
-                           ; filter := fs' |}
-                ; ret  := rt' |} in
-     if query_equiv check_entailment q q' then
-       Some (fs', rt')
-     else
-       None).
-  refine (@remove _ ts ls binds binds'0 (fst x) (snd x)).
-  Defined.
 
   Definition minimize {t} (q : query scheme t) : query scheme t :=
     @remove _ nil q.(tabl).(types)

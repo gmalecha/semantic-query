@@ -57,7 +57,7 @@ Section with_schema.
                                                | eq_refl => m2
                                                end }
        with
-       | MZ ls' => fun X : member b (a :: ls') =>
+       | MZ _ ls' => fun X : member b (a :: ls') =>
          match X as X in member _ ls
                return match ls as ls return member b ls -> Type with
                       | nil => fun _ => Empty_set
@@ -70,10 +70,10 @@ Section with_schema.
                                               end }
                       end X
          with
-         | MZ _ => Some (@exist _ _ eq_refl eq_refl)
-         | MN _ _ _ => None
+         | MZ _ _ => Some (@exist _ _ eq_refl eq_refl)
+         | MN _ _ => None
          end
-       | MN x xs m1' => fun X : member b (x :: xs) =>
+       | @MN _ _ x xs m1' => fun X : member b (x :: xs) =>
          match X in member _ ls
                return match ls as ls
                             return member b ls -> Type
@@ -89,11 +89,11 @@ Section with_schema.
                                               end }
                       end X
          with
-         | MZ _ => fun _ => None
-         | MN l ls m2' => fun m1' =>
+         | MZ _ _ => fun _ => None
+         | @MN _ _ l ls m2' => fun m1' =>
            match @member_eq' _ _ _ _ m1' m2' with
            | None => None
-           | Some (exist pf pf') =>
+           | Some (@exist _ _ pf pf') =>
              Some (@exist _ _ pf
                           (match pf as pf in _ = X
                                  return forall m1'0 : member X ls,
@@ -114,7 +114,6 @@ Section with_schema.
          end m1'
        end m2).
 
-
   Fixpoint find_matching {T} {vs} (t : member T schema)
            (ts : hlist (fun rt => member rt schema) vs)
   : list { t' : member _ vs | hlist_get t' ts = t } :=
@@ -122,10 +121,10 @@ Section with_schema.
           return list { t' : member _ vs | hlist_get t' ts = t }
     with
     | Hnil => nil
-    | Hcons l ls m h =>
+    | @Hcons _ _ l ls m h =>
       match member_eq' t m with
       | None => nil
-      | Some (exist pf pf') =>
+      | Some (@exist _ _ pf pf') =>
         @exist _ _ match pf in _ = X return member X (l :: ls) with
                    | eq_refl => MZ _ _
                    end
@@ -142,7 +141,7 @@ Section with_schema.
                 | eq_refl => fun _ => @eq_sym _ _ _
                 end t pf') :: nil
       end ++ List.map (fun x : {t' : member T ls | hlist_get t' h = t} =>
-                         let '(exist a b) := x in
+                         let '(@exist _ _ a b) := x in
                          @exist _ (fun x => hlist_get x (Hcons m h) = t)
                                 (MN _ a) b) (@find_matching T ls t h)
     end.
@@ -154,8 +153,8 @@ Section with_schema.
                                    | _ :: _ => unit
                                    end
       with
-      | MZ _ => tt
-      | MN _ _ _ => tt
+      | MZ _ _ => tt
+      | MN _ _ => tt
       end.
 
   Definition binds_homomorphism_nil ts2 (h : types_homomorphism nil ts2)
@@ -169,8 +168,8 @@ Section with_schema.
                    | _ :: _ => unit
                    end
       with
-      | MZ _ => tt
-      | MN _ _ _ => tt
+      | MZ _ _ => tt
+      | MN _ _ => tt
       end.
 
   Section _combine.
@@ -192,8 +191,8 @@ Section with_schema.
                                 member x' ts2 -> (member x xs -> member x ts2) -> member x ts2
                               end
                  with
-                 | MZ _ => fun X _ => X
-                 | MN _ _ m''' => fun _ X => X m'''
+                 | MZ _ _ => fun X _ => X
+                 | MN _ m''' => fun _ X => X m'''
                  end m' (th' _))
               (fun t (x : member t (l :: ls)) =>
                  match x as x in member _ X
@@ -214,16 +213,16 @@ Section with_schema.
                                           member x' ts2 -> (member t xs -> member t ts2) -> member t ts2
                                         end
                                       with
-                                      | MZ ls0 =>
+                                      | MZ _ ls0 =>
                                         fun (X : member t ts2) (_ : member t ls0 -> member t ts2) => X
-                                      | MN l0 ls0 m''' =>
+                                      | @MN _ _ l0 ls0 m''' =>
                                         fun (_ : member l0 ts2) (X : member t ls0 -> member t ts2) =>
                                           X m'''
                                       end m' (th' t)) b2
                               end x
                  with
-                 | MZ _ => fun _ _ _ _ X _ => @eq_sym _ _ _ X
-                 | MN _ _ _ => fun _ _ _ _ _ X => X _ _
+                 | MZ _ _ => fun _ _ _ _ X _ => @eq_sym _ _ _ X
+                 | MN _ _ => fun _ _ _ _ _ X => X _ _
                  end m' th' m bs1 pf' bh').
 
     Fixpoint all_bind_homomorphisms {ts1 ts2}
@@ -237,11 +236,11 @@ Section with_schema.
       with
       | Hnil => (@existT _ _ (types_homomorphism_nil ts2)
                          (@binds_homomorphism_nil ts2 _ Hnil b2)) :: nil
-      | Hcons l ls m bs1 =>
+      | @Hcons _ _ l ls m bs1 =>
         cross (fun (cur : {t' : member l ts2 | hlist_get t' b2 = m})
                    (rest : {h : types_homomorphism ls ts2 & binds_homomorphism h bs1 b2}) =>
-                let '(exist m' pf') := cur in
-                let '(existT th' bh') := rest in
+                let '(@exist _ _ m' pf') := cur in
+                let '(@existT _ _ th' bh') := rest in
                 combine m' pf' bh')
               (find_matching m b2)
               (all_bind_homomorphisms bs1 b2)
@@ -317,7 +316,7 @@ Section with_schema.
           return forall (r2 : ret_type vs2 ts), option (ret_homomorphism h f2 r1 r2)
     with
     | Hnil => fun X => Some (ret_homomorphism_nil _ _ r1 X)
-    | Hcons _ _ rt r1' => fun r2 =>
+    | Hcons rt r1' => fun r2 =>
       match check_entailment f2 (Eq (expr_subst h rt) (hlist_hd r2)) with
       | None => None
       | Some pf =>
@@ -343,7 +342,7 @@ Section with_schema.
     let xs := all_bind_homomorphisms t1.(binds) t2.(binds) in
     filter_map (fun (x : { h : types_homomorphism t1.(types) t2.(types)
                          & binds_homomorphism h t1.(binds) t2.(binds) }) =>
-                  let '(existT vm bm) := x in
+                  let '(@existT _ _ vm bm) := x in
                   match
                     check_filter (map (expr_subst vm) t1.(filter))
                                  t2.(filter)

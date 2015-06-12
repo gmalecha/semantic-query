@@ -67,7 +67,7 @@ Section find_assumption.
                          | _ => fun _ => False
                          end goal)
     with
-    | Eq T l r =>
+    | Eq l r =>
       match expr_eq l r with
       | left pf => Some (fun vs => match pf in _ = T
                                          return exprD (Eq l T) vs = true
