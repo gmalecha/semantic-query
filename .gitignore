@@ -4,3 +4,5 @@
 coq-ext-lib
 Makefile.coq
 *~
+.coq-native
+.*.aux
