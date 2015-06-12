@@ -13,15 +13,27 @@ Proof.
   intros. rewrite rel_dec_correct in H. assumption.
 Qed.
 
+Ltac prep :=
+  match goal with
+  | |- Meq ?x ?m =>
+    first [ is_evar x ; try unfold m
+          | is_evar m ; symmetry ; try unfold x ]
+  | |- _ -> Meq ?x ?m =>
+    first [ is_evar x ; try unfold m
+          | is_evar m ; let y := fresh in intro y ; symmetry ; revert y ; try unfold x ]
+  | |- { x : _ | _ -> Meq _ _ } => eexists ; prep
+  | |- { x : _ | Meq _ _ } => eexists ; prep
+  end.
+
 (** Refinement lemmas **)
 Section refinement_lemmas.
   Variable M : Type -> Type.
   Context {DM : DataModel M}.
 
   Definition conditional_transitive {T} (P : Prop) (m1 m2 : M T)
-    : (P -> Meq m2 m1) ->
-      {x : M T | P -> Meq x m1 } ->
-      {x : M T | P -> Meq x m2 }.
+  : (P -> Meq m2 m1) ->
+    {x : M T | P -> Meq x m1 } ->
+    {x : M T | P -> Meq x m2 }.
   Proof.
     intros. destruct X.
     exists x.
@@ -63,6 +75,24 @@ Section refinement_lemmas.
   Proof.
     exists m2. subst. reflexivity.
   Defined.
+
+  Lemma refine_transitive : forall {T} (a b c : M T),
+      Meq b c ->
+      Meq a b ->
+      Meq a c.
+  Proof. intros. etransitivity; eassumption. Qed.
+
+  Lemma refine_transitive_under : forall {T} (a b c : M T) (P : Prop),
+      (P -> Meq b c) ->
+      (P -> Meq a b) ->
+      (P -> Meq a c).
+  Proof. intros. etransitivity; eauto. Qed.
+
+  Lemma refine_transitive_under_flip : forall {T} (a b c : M T) (P : Prop),
+      (P -> Meq a b) ->
+      (P -> Meq b c) ->
+      (P -> Meq c a).
+  Proof. intros. symmetry; etransitivity; eauto. Qed.
 
 End refinement_lemmas.
 
@@ -166,68 +196,28 @@ Section normalize_proofs.
     unfold query. simpl; intros; rw_M. reflexivity.
   Qed.
 
-  Definition normalize_function {T} (m m' m'' : M T)
-    : Meq (Mbind (query (Mret tt) (fun _ => true) (fun x => x)) (fun _ => m))
-          m' ->
-      m' = m'' ->
-      { x : M T | Meq x m }.
+  Definition normalize_function {T} (m : M T)
+  : Meq m (Mbind (query (Mret tt) (fun _ => true) (fun x => x)) (fun _ => m)).
   Proof.
-    intros.
-    exists m''.
-    subst.
     unfold query in *.
-    revert H.
-    rw_M.
-    symmetry. assumption.
-  Defined.
-
-  Definition normalize_function_ed {T} (m m' m'' : M T) (P : Prop)
-  : Meq (Mbind (query (Mret tt) (fun _ => true) (fun x => x)) (fun _ => m))
-        m' ->
-    m' = m'' ->
-    { x : M T | P -> Meq x m }.
-  Proof.
-    intros.
-    exists m''.
-    subst.
-    unfold query in *.
-    revert H.
-    rw_M.
-    symmetry. assumption.
-  Defined.
-
+    rw_M. reflexivity.
+  Qed.
 
 End normalize_proofs.
 
 Ltac normalize :=
+  intros;
   match goal with
-  | |- { x : ?X | Meq x ?m } =>
-    eapply normalize_function ;
-      [ try unfold m ;
-        repeat first [ setoid_rewrite normal_pull_plus_tt
-                     | setoid_rewrite normal_pull_plus
-                     | setoid_rewrite normal_pull_guard_const
-                     | setoid_rewrite normal_pull_guard
-                     | eapply normal_pull_ret ]
-      | match goal with
-        | |- ?result = _ =>
-          let res := eval simpl in result in
-          exact (@eq_refl _ res)
-        end ]
-  | |- { x : ?X | _ -> Meq x ?m } =>
-    eapply normalize_function_ed ;
-      [ try unfold m ;
-        repeat first [ setoid_rewrite normal_pull_plus_tt
-                     | setoid_rewrite normal_pull_plus
-                     | setoid_rewrite normal_pull_guard_const
-                     | setoid_rewrite normal_pull_guard
-                     | eapply normal_pull_ret ]
-      | match goal with
-        | |- ?result = _ =>
-          let res := eval simpl in result in
-          exact (@eq_refl _ res)
-        end ]
-  end.
+  | |- Meq ?x ?m =>
+    first [ is_evar x ; rewrite (@normalize_function _ _ _ m) ; try unfold m
+          | is_evar m ; rewrite (@normalize_function _ _ _ x) ; try unfold x ]
+  end ;
+  repeat first [ setoid_rewrite normal_pull_plus_tt
+               | setoid_rewrite normal_pull_plus
+               | setoid_rewrite normal_pull_guard_const
+               | setoid_rewrite normal_pull_guard
+               | setoid_rewrite normal_pull_ret ] ;
+  simpl ; reflexivity.
 
 Section chase_proofs.
   Variable M : Type -> Type.
@@ -419,11 +409,11 @@ Ltac pg :=
   end.
 
 Ltac prove_query_morphism solver :=
-  instantiate ;
-  eapply check_query_morphism_apply ;
-  [ find_bind_morphism
-  | simpl ; solve [ solver ]
-  | simpl ; solve [ solver ] ].
+  once (instantiate ;
+        eapply check_query_morphism_apply ;
+        [ find_bind_morphism
+        | simpl ; solve [ solver ]
+        | simpl ; solve [ solver ] ]).
 
 Ltac prove_query_isomorphism solver :=
   match goal with
@@ -432,10 +422,10 @@ Ltac prove_query_isomorphism solver :=
     split; prove_query_morphism solver
   end.
 
-Ltac chase_ed solver m :=
-  try unfold m ;
+Ltac chase_ed solver :=
   match goal with
   | |- _ -> Meq ?pre ?post =>
+    try unfold post ;
     first [ refine (@chase_sound_apply_ed_tt _ _ _ _ _ _ _ _ _ _ _ _ _ _)
           | refine (@chase_sound_apply _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) ] ;
       [ shelve
@@ -451,16 +441,17 @@ Ltac ed_search :=
   + (simple apply EdsSound_start ; ed_search)
   + (simple apply EdsSound_end ; ed_search).
 
-
 Ltac chase solver :=
   lazymatch goal with
-  | |- { x : _ | _ -> Meq x ?m } =>
-    repeat first [ eapply conditional_transitive ;
-                   [ solve [ ed_search ; chase_ed solver m ]
+  | |- _ -> Meq ?x ?m =>
+    first [ is_evar x
+          | is_evar m ; let y := fresh in intro y ; symmetry ; revert y ] ;
+    repeat first [ refine (@refine_transitive_under_flip _ _ _ _ _ _ _ _ _) ;
+                   [ shelve
+                   | once solve [ ed_search ; chase_ed solver m ]
                    | idtac "chased" ]
-                 | eapply conditional_reflexive ]
-  | |- { x : _ | Meq x ?m } =>
-    eapply unconditional_reflexive (** there are no eds **)
+                 | simpl ; reflexivity ]
+  | |- Meq ?x ?m => simpl ; reflexivity
   end.
 
 Section minimize_lemmas.
@@ -547,7 +538,9 @@ Ltac drop_dup solver :=
       + (simple eapply pick_right ; search)
   in
   match goal with
-  | |- Meq _ _ =>
+  | |- Meq ?x ?m =>
+    first [ is_evar x ; symmetry
+          | is_evar m ] ;
     repeat first [ simple eapply minimize_const
                  | eapply minimize_drop ;
                    [ solve [ split ; [ search | prove_query_isomorphism solver ] ]
@@ -587,22 +580,23 @@ Ltac minimize solver :=
       drop_dup solver
   in
   lazymatch goal with
-  | |- { x : _ | Meq x ?m } =>
-    eapply unconditional_transitive ;
-      [ try unfold m ; kont ; solve [ solve_conclusion ]
-      | eapply unconditional_simpl; simpl; reflexivity ]
-  | |- { x : _ | _ -> Meq x ?m } =>
-    eapply conditional_transitive ;
-      [ intro ; try unfold m ; kont ; solve [ solve_conclusion ]
-      | eapply conditional_simpl; intro ; simpl; reflexivity ]
-  end.
+  | |- Meq ?x ?m => idtac
+  | |- _ -> Meq ?x ?m => intro
+  end ;
+  eapply refine_transitive ;
+  [ kont ; solve [ solve_conclusion ]
+  | simpl ; reflexivity ].
 
-Ltac finisher :=
+Ltac simplifier :=
   lazymatch goal with
-  | |- { x : _ | Meq x ?X } =>
-    eexists ; symmetry ; try unfold X ;
-    unfold query, Mmap ; rw_M ; simpl ; reflexivity
-  | |- { x : _ | _ -> Meq x ?X } =>
-    eexists ; intro; symmetry ; try unfold X ;
-    unfold query, Mmap ; rw_M ; simpl ; reflexivity
-  end.
+  | |- _ -> Meq _ _ =>
+    intro
+  | |- Meq _ _ => idtac
+  end ; rw_M ; simpl ; reflexivity.
+
+Ltac execute0 tac :=
+  prep ; tac.
+Ltac execute1 tac arg :=
+  prep ; tac arg.
+Ltac execute2 tac arg1 arg2 :=
+  prep ; tac arg1 arg2.

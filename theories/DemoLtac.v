@@ -40,11 +40,11 @@ Section Movies.
        Mguard (x.(title) ?[ eq ] y.(title)) (Mret (x.(director),y.(actor))))).
 
     Example normalized_ex1' : { x : M (string * string) | Meq x ex1 }.
-    normalize.
+    execute0 normalize.
     Defined.
 
     Example normalized_ex1 :=
-      Eval cbv beta iota zeta delta [ proj1_sig normalized_ex1' normalize_function ]
+      Eval cbv beta iota zeta delta [ proj1_sig normalized_ex1' ]
       in (proj1_sig normalized_ex1').
     Print normalized_ex1.
 
@@ -76,7 +76,7 @@ Section Movies.
     Example universal_ex1'
     : { x : M (string * string)
       | EdsSound (title_implies_director :: nil) -> Meq x normalized_ex1 }.
-    chase solver.
+    execute1 chase solver.
     Defined.
 
     Definition universal_ex1 :=
@@ -89,14 +89,11 @@ Section Movies.
     (******************)
 
     Example minimized_ex1' : { x : _ | Meq x universal_ex1 }.
-    minimize solver'.
+    execute1 minimize solver'.
     Defined.
 
     Definition minimized_ex1 :=
-      Eval cbv beta iota zeta delta [ Mmap minimized_ex1' proj1_sig unconditional_transitive unconditional_simpl query Mguard ]
-      in (proj1_sig minimized_ex1').
-
-    Eval cbv beta iota zeta delta [ Mmap minimized_ex1' proj1_sig unconditional_transitive unconditional_simpl query Mguard ]
+      Eval cbv beta iota zeta delta [ Mmap minimized_ex1' proj1_sig unconditional_transitive unconditional_simpl query ]
       in (proj1_sig minimized_ex1').
     Print minimized_ex1.
 
@@ -104,28 +101,37 @@ Section Movies.
     (***************)
 
     Definition finished_ex1 : { m : _ | Meq m minimized_ex1 }.
-    finisher.
+    execute0 simplifier.
     Defined.
 
-    Eval cbv beta iota zeta delta [ Mmap finished_ex1 proj1_sig unconditional_transitive unconditional_simpl query Mguard ]
+    Eval cbv beta iota zeta delta [ Mmap finished_ex1 proj1_sig unconditional_transitive unconditional_simpl query ]
       in (proj1_sig finished_ex1).
 
     (** TODO: This is incomplete **)
+    Ltac continue tac :=
+      (first [ refine (@refine_transitive _ _ _ _ _ _ _ _)
+             | refine (@refine_transitive_under _ _ _ _ _ _ _ _ _) ];
+       [ shelve | | ]); [ once  tac.. | ].
     Ltac optimize solver :=
+      prep ;
       lazymatch goal with
-      | |- { x : _ | Meq x ?X } =>
-        normalize ;
-        minimize solver ;
-        finisher
-      | |- { x : _ | _ -> Meq x ?X } =>
-        normalize ;
-        chase solver ;
-        minimize solver ;
-        finisher
+      | |- Meq _ _ =>
+        continue normalize ;
+        continue ltac:(idtac; minimize solver) ;
+        simplifier
+      | |- _ -> Meq _ _ =>
+        continue normalize ;
+        continue ltac:(idtac; chase solver) ;
+        continue ltac:(idtac; minimize solver) ;
+        simplifier
       end.
 
     Definition optimized : { m : _ | EdsSound (title_implies_director :: nil) -> Meq m ex1 }.
-    Abort.
+    optimize solver'.
+    Defined.
+
+    Eval cbv beta iota zeta delta [ Mmap finished_ex1 proj1_sig optimized ]
+      in (proj1_sig optimized).
 
     Definition tbl_movies : M movie := makeM
       (Movie "Star Trek: Into Darkness" "JJ Abrams" "Benedict Cumberbatch" ::
