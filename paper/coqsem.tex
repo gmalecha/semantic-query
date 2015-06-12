@@ -590,6 +590,8 @@ Here, ``...'' elide the reduction strategy which tells Coq which symbols to keep
 Even on small examples (5 rows), the optimized implementation performs 2x faster than the non-optimized version.
 While a production database would likely do considerably faster (on considerably larger relations) it should be noted that the semantic optimization that we achieve in this example enables us to reduce the asymptotic running time \emph{in a fully verified way}.
 
+\subsection{Background: Tactic-based Programming}
+
 \subsection{Normalization}
 \label{sec:normalization}
 
@@ -698,7 +700,7 @@ Definition embedded_dependency {S S': Type}
 \end{coq}
 
 \paragraph{Backtracking to Find a Morphism}
-With a representation of embedded dependencies in hand, first goal of the chase step is to find a tableau homomorphism from the query to the front of the embedded dependency.
+With a representation of embedded dependencies in hand, first part of the chase step is to find a tableau homomorphism from the query to the front of the embedded dependency.
 This step is inherently more complex than normalization because it involves a backtracking search.
 \greg{This is easier to do in Coq 8.5 with the new Ltac engine, I should check to see how it works out}
 
