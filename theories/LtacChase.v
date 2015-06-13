@@ -223,20 +223,20 @@ Section chase_proofs.
   Variable M : Type -> Type.
   Context {DM : DataModel M}.
 
-  Lemma split_bind_map {T T' U U'} (x : M T) (y : M U) f g
-        (Z : M (T' * U'))
-  : Mimpl (Mmap g Z) y ->
-    Mimpl (Mmap f Z) x ->
-    Mimpl (Mmap (fun xy => (f xy, g xy)) Z)
-          (Mplus x y).
+  Definition pick_split
+    : forall {T U U' : Type} (m : M T) (u : M U) (u' : M U') f g,
+      Mimpl (Mmap f m) u ->
+      Mimpl (Mmap g m) u' ->
+      Mimpl (Mmap (fun x => (f x, g x)) m) (Mplus u u').
   Proof.
-    intros. rewrite <- H; clear H. rewrite <- H0; clear H0.
-    rewrite Mplus_Mmap_L. rewrite Mplus_Mmap_R.
-    rewrite Mmap_compose. simpl.
-    unfold Mmap, Mplus.
+    unfold Mmap, Mplus; intros.
+    rewrite <- H; clear H.
     rw_M.
-    generalize (@Mbind_dup M _ _ _ Z (fun xy => Mret (f (fst xy), g (snd xy)))). simpl.
-    intros. eapply H.
+    rewrite Mbind_perm.
+    rewrite <- H0.
+    rw_M.
+    generalize (Mbind_dup m (fun xy => Mret (f (snd xy), g (fst xy)))).
+    simpl. intro. rewrite <- H. reflexivity.
   Qed.
 
   Lemma pick_left {T' U' V} (f' : _ -> V) (x : M V) (y : M T') (k' : M U')
@@ -324,22 +324,6 @@ Section chase_proofs.
       reflexivity. }
   Qed.
 
-  Definition pick_dup
-    : forall {T U U' : Type} (m : M T) (u : M U) (u' : M U') f g,
-      Mimpl (Mmap f m) u ->
-      Mimpl (Mmap g m) u' ->
-      Mimpl (Mmap (fun x => (f x, g x)) m) (Mplus u u').
-  Proof.
-    unfold Mmap, Mplus; intros.
-    rewrite <- H; clear H.
-    rw_M.
-    rewrite Mbind_perm.
-    rewrite <- H0.
-    rw_M.
-    generalize (Mbind_dup m (fun xy => Mret (f (snd xy), g (fst xy)))).
-    simpl. intro. rewrite <- H. reflexivity.
-  Qed.
-
   Fixpoint EdsSound (ls : list Prop) : Prop :=
     match ls with
     | nil => True
@@ -387,14 +371,7 @@ End chase_proofs.
 Ltac find_bind_morphism :=
   lazymatch goal with
   | |- Mimpl (Mmap _ ?D) (Mplus ?A ?B) =>
-      (eapply split_bind_map ; find_bind_morphism)
-    + (match A with
-       | context [ D ] =>
-         match B with
-         | context [ D ] =>
-           eapply pick_dup ; find_bind_morphism
-         end
-       end)
+      (eapply pick_split ; find_bind_morphism)
   | |- Mimpl _ _  =>
     (** Here I should have something that is atomic **)
       (simple eapply pick_here ; find_bind_morphism)
