@@ -43,6 +43,7 @@
 \newcommand{\NIL}{{\tt Nil}}
 
 \newcommand{\greg}[1]{\textcolor{blue}{GREG: #1}}
+\newcommand{\ltac}[0]{\ensuremath{\mathcal{L}_{\mathrm{tac}}}}
 
 \begin{document}
 
@@ -592,6 +593,69 @@ While a production database would likely do considerably faster (on considerably
 
 \subsection{Background: Tactic-based Programming}
 
+The ``standard'' approach to developing an algorithm such as the chase in Coq would be to program it in Gallina, Coq's total, functional programming language.
+By the Curry-Howard correspondence~\cite{} this programming language is also a logic where propositions are types and programs are proofs.
+A more complete description of the correspondence can be found in a variety of sources~\cite{}.
+We will return to this approach in more detail in Section~\ref{sec:??}, in this work we develop our optimization in a different way.
+
+In addition to Gallina, Coq also comes with another programming language, \ltac.
+Unlike Gallina, which is strongly-typed and pure, \ltac\ is untyped and partial.
+\ltac\ is a proof scripting language that is used to construct proof terms in an imperative style.
+In this section we will discuss the key aspects of \ltac\ using a simple example for implementing addition.
+\ltac\ is centered around manipulating Gallina terms.
+
+
+The most common use of \ltac\ is to construct proofs of Gallina propositions.
+For example, proving that \coqe{x + y = y + x} can be done by using the Gallina theorem that proves the commutativity of addition, i.e.
+\begin{coq}
+Theorem plus_comm : forall (n m : nat), n + m = m + n.
+Proof. ... Qed.
+\end{coq}
+In \ltac{} we can apply this theorem using the \coqe{apply} tactic.
+\begin{coq}
+(* x, y : nat
+ * ==============
+ * x + y = y + x
+ *)
+apply plus_comm. (* => goal solved *)
+\end{coq}
+The implementation of \coqe{apply} unifies \coqe{x + y = y + x} with \coqe{?n + ?m = ?m + ?n} where the question mark variables (e.g. \coqe{?n}) are flexible unification variables that the unification can pick values for.
+To solve this problem, the unification algorithm picks \coqe{?n $\mapsto$ x} and \coqe{?m $\mapsto$ y}.
+
+In addition to \coqe{apply}, \ltac{} also provides \coqe{rewrite} to perform rewriting by user-defined relations.
+Rewriting can be considerably more flexible than direct function application but works in much the same way.
+Generalizing the goal above to \coqe{(x + y) * 3 = (y + x) * 3} makes \coqe{plus_comm} no longer immediately apply, but since equality is a transitive relation we can use \ltac{} to rewrite in the conclusion and then solve the goal by the reflexivity of equality.
+\begin{coq}
+(* x, y : nat
+ * ==============
+ * (x + y) * 3 = (y + x) * 3
+ *)
+rewrite plus_comm.
+(* x, y : nat
+ * ==============
+ * (y + x) * 3 = (y + x) * 3
+ *)
+reflexivity. (* => goal solved *)
+\end{coq}
+
+In addition to solving concrete goals such as the ones above, \ltac{} is also able to manipulate unification variables directly.
+Take the goal \coqe{?x = 3} for example.
+The \coqe{reflexivity} tactic will solve this goal by instantiating \coqe{?x} with the value 3.
+These unification variables are commonly used when proving existential quantifiers.
+For example, in the following goal we use \coqe{eexists} to introduce a new unification varible for \coqe{x} and then solve the resulting equation with \coqe{reflexivity}.
+\begin{coq}
+(* ==================
+ * exists x : nat , x = 3
+ *)
+$\texttt{\textcolor{dkblue}{eexists}}$.
+(* ==================
+ * ?x = 3
+ *)
+reflexivity. (* => goal solved *)
+\end{coq}
+
+\greg{this is a very unfocused section}
+
 \subsection{Normalization}
 \label{sec:normalization}
 
@@ -602,7 +666,6 @@ The definition is the following:
 Definition query {S T: Type}
   (P : M S) (C : S -> bool) (E : S -> T) : M T :=
   Mbind P (fun x => Mguard (C x) (Mret (E x))).
-
 \end{coq}
 Here, \coqe{P} represents the \FOR-clause which generates the tableau,
 \coqe{C} represents the conditional \WHERE-clause, and \coqe{E} represents the \RETURN-clause.
@@ -682,10 +745,9 @@ query (Mplus Movies Movies)
 \end{coq}
 
 \subsection{The Chase}
-\greg{we could try to support nested relations as well, but they have a complex goal structure}
 
 With a normalized query in hand, we begin chasing it using our embedded dependencies.
-The general approach is similar to that of normalization, we will use a ``prepping'' lemma to set up the goal into a form that we can automate and then use stepping lemmas to incrementally solve the goal one step at a time.
+The general approach is similar to that of normalization, we will use a ``prepping'' lemma to set up the goal into a form that we can automate and then use stepping lemmas to solve the goal one step at a time.
 
 \paragraph{Representing Embedded Dependencies}
 We first express the representation of embedded dependencies.
@@ -699,32 +761,178 @@ Definition embedded_dependency {S S': Type}
              (fun x => fst x)).
 \end{coq}
 
+%% With an executable data model (e.g. finite sets) over queries with decidable equality on their return types, it is simple to prove that embedded dependencies hold for particular concrete databases.
+
+
+
 \paragraph{Backtracking to Find a Morphism}
 With a representation of embedded dependencies in hand, first part of the chase step is to find a tableau homomorphism from the query to the front of the embedded dependency.
 This step is inherently more complex than normalization because it involves a backtracking search.
-\greg{This is easier to do in Coq 8.5 with the new Ltac engine, I should check to see how it works out}
+Fundamentally, however, the approach is the same as for normalization.
 
+In the explanation of the chase step in Section~\ref{sec:chase} the morphism was from the variables bound in the \FOR-clause to the variables bound in the front of the embedded dependency.
+In our movie query example we are looking for a mapping that assigns values in $\{x,y\}$ to values in $\{m_1,m_2\}$.
 
+Since our queries are simply Coq terms, referencing these binders explicitly can be quite difficult, and, as we will see later, is not very extensible.
+Rather, we will encode our morphism as a function between the types being bound.
+In this example, the type of the \FOR-clause of the query is \coqe{Movie * Movie} and the type of the \FORALL-clause is also \coqe{Movie * Movie}, so we are looking for a function \coqe{h : Movie * Movie -> Movie * Movie}.
+Looking at the query and the ED, there are 4 reasonable choices.
+\begin{coq}
+h x = (fst x, fst x)
+h x = (fst x, snd x)
+h x = (snd x, fst x)
+h x = (snd x, snd x)
+\end{coq}
+Where \coqe{fst} is extracting the first element of the pair and \coqe{snd} is extracting the second element of the pair.
+
+As before, we are going to construct these functions incrementally using particular theorems that represent individual steps of reasoning.
+Ultimately, our algorithm considers each value bound in the query and maps to to a value bound from the ED.
+We encode this process using the following lemmas:
+\begin{coq}
+Lemma pick_split
+: forall {T U U' : Type} (m : M T) (u : M U) (u' : M U') f g,
+  Mimpl (Mmap f m) u ->
+  Mimpl (Mmap g m) u' ->
+  Mimpl (Mmap (fun x => (f x, g x)) m) (Mplus u u').
+Proof. ... Qed.
+
+Lemma pick_left {T' U' V} (f' : _ -> V) (x : M V) (y : M T') (k' : M U')
+: Mimpl (Mmap f' k') x ->
+  Mimpl (Mmap (fun x => f' (fst x)) (Mplus k' y)) x.
+Proof. ... Qed.
+
+Lemma pick_right {T' U' V} (f' : _ -> V) (x : M V) (y : M T') (k' : M U')
+: Mimpl (Mmap f' k') x ->
+  Mimpl (Mmap (fun x => f' (snd x)) (Mplus y k')) x.
+Proof. ... Qed.
+
+Lemma pick_here {T} (x : M T)
+: Mimpl (Mmap (fun x => x) x) x.
+Proof. ... Qed.
+\end{coq}
+The first theorem (\coqe{pick_split}) finds a morphism from \coqe{Z} to \coqe{Mplus x y} by combining a morphism from \coqe{Z} to \coqe{x} with another morphism from \coqe{Z} to \coqe{y}.
+\coqe{pick_left} decides to use only the left-hand side of the \coqe{Mplus k' y} to determine \coqe{x}, \coqe{pick_right} is analagous for the right-hand side.
+Finally, \coqe{pick_here} applies when the value being searched for is exactly the value being bound in which case it can pick the value directly.
+
+We combine these proofs into into a search using \ltac's backtracking \coqe{+} operator.
+The core of the procedure is the following:
+\begin{coq}
+Ltac find_bind_morphism :=
+  lazymatch goal with
+  | |- Mimpl (Mmap _ _) (Mplus _ _) =>
+      (eapply pick_split)
+  | |- Mimpl _ _  =>
+      (simple eapply pick_here)
+    + (simple eapply pick_left)
+    + (simple eapply pick_right)
+  end ; find_bind_morphism.
+\end{coq}
+Applied to our simple example this essentially amounts to:
+\begin{coq}
+eapply pick_split ;
+  (simple eapply pick_here + simple eapply pick_left + simple eapply pick_right) ;
+  (simple eapply pick_here + simple eapply pick_left + simple eapply pick_right)
+\end{coq}
+The first application splits the morphism into two parts, and the semi-colon runs the remainder of the tactic on the two independent goals.
+The plus operator effectively allows choices to be made independently and allows backtracking to encode the non-deterministic choice.
+In this case, along the first goal we \coqe{pick_left} and then \coqe{pick_here} and along the second we \coqe{pick_right} and then \coqe{pick_here}.
+The search completes with each of the four candidate morphisms written above, the next step is to solve the side conditions.
 
 \paragraph{Solving the Side-conditions}
+With a candidate morphism in hand, the next step is to discharge the side condition which guarantees that the \WHERE-clause of the query implies the \WHERE-clause of the embedded dependency.
+In our problem, this amounts to the following:
+\begin{coq}
+forall x : S, (fst x).(title) ?[=] (snd x).(title) = true
+     -> (fst (h x)).(title) ?[=] (snd (h x)).(title)
+\end{coq}
+However, once we get to this step, \coqe{h} is exactly one of the morphisms constructed by the previous step.
+When we plug in the correct morphism, i.e. \coqe{h x = (fst x, snd x)} (recall that we are enumerating all of the potential morphisms) we get the following:
+\begin{coq}
+forall x : S, (fst x).(title) ?[=] (snd x).(title) = true
+     -> (fst x).(title) ?[=] (snd x).(title) = true
+\end{coq}
+While this goal is trivially true, in general these side conditions can require potentially arbitrary reasoning.
+For example, in the indexing example, proving this implication requires proving the following arithmetic fact.
+\begin{coq}
+forall p, p.age ?[>] 16 && p.age ?[<] 18 = true ->
+          p.age ?[<] 21 = true
+\end{coq}
+Coq already has the \coqe{omega} tactic for performing arithmetic reasoning.
+In addition, we can develop our own theorems and \ltac{} for automating different domains, for example the length of strings, the case of characters, or even complex arithmetic on floating point numbers.
+
+\greg{The automation used here is a parameter to the tactic}
+
+\paragraph{Ensuring Progress}
+After the side-condition is checked, the final piece is to ensure that this chase step makes interesting progress by adding \emph{new} facts or data to the query.
+This check simply requires that we have a tactic that can find an isomorphism between queries, which is essentially the same as what we have done up until this point, except that we also need to prove that the \RETURN-clauses of the two queries are equal under the assumptions in the \WHERE-clause.
+The \ltac{} to check this is trivial given the machinery that we developed in the previous two steps.
+The entire \ltac{} is (essentially) the following:
+\begin{coq}
+Ltac prove_query_morphism solver :=
+  eapply check_query_morphism_apply ;
+    [ find_bind_morphism
+    | simpl ; solve [ solver ]
+    | simpl ; solve [ solver ] ]).
+
+Ltac prove_query_isomorphism solver :=
+  split; prove_query_morphism solver
+\end{coq}
+
+
+\greg{Note that we are removing some of the complexity from the tactics.}
 
 
 \paragraph{Traversing EDs}
-In general, we will be chasing using a set of embedded dependencies so our first step is to 
 
+\greg{This section should go at the beginning of the chase section}
 
+The previous sections have shown how to chase a single embedded dependency, chasing a collection of EDs is not much more difficult.
+Embedded dependencies are communicated via premises on the entailment, so all that remains is to non-deterministically select the appropriate ED.
+The approach here is the same as when we non-deterministically found the morphism; we simply perform an exhaustive backtracking search trying to chase each one until we succeed.
+For convenience we require that multiple EDs are combined with $\wedge$.
 
 \subsection{Minimization}
+
+The final step in optimization is to remove extraneous binds from the query.
+By now, the techniques are all old-hat.
+We will use incremental lemmas to iterate through the binders and attempt to drop each one by expressing a side-condition the expresses that the information in that binder can be reconstructed from the other bound values.
+The core relevant lemmas are the following:
+\begin{coq}
+Lemma minimize_drop
+: forall {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) f (qb'' : M T') qg'',
+  Mimpl (Mmap f qb') qb ->
+  Meq (query (Mplus qb qb') qg qr)
+      (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y))) ->
+  Meq (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y)))
+      (query qb'' (fun y => qg'' (f y,y)) (fun y => qr (f y,y))) ->
+  Meq (query (Mplus qb qb') qg qr)
+      (query (Mmap (fun x => (f x, x)) qb'') qg'' qr).
+Proof. ... Qed.
+
+Lemma minimize_keep
+: forall {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) (qb'' : M T') qg'',
+  (forall x : T,
+     Meq (query qb' (fun y => qg (x,y)) (fun y => qr (x,y)))
+         (query qb'' (fun y => qg'' (x,y)) (fun y => qr (x,y)))) ->
+  Meq (query (Mplus qb qb') qg qr)
+      (query (Mplus qb qb'') qg'' qr).
+Proof. ... Qed.
+\end{coq}
+\coqe{minimize_drop} states that we can drop the first (left) binder if we can find a way to compute it (\coqe{f}) from the right binder, i.e. a morphism from \coqe{Mmap f qb'} to \coqe{qb}.
+The second premise, ensures that this choice of \coqe{f} respects the equivalence of the query.
+\coqe{minimize_keep} is the fallback case.
+If we can not find a way to construct the information from the rest of the query, then we must keep this information, but we can still optimize the rest of the query (represented by quantifying over any value from the relation and ensuring that the rest of the query is still valid).
+
+\greg{Note, this is a bit incomplete because the current automation does not allow backwards minimization}
 
 \subsection{Scheduling}
 \greg{not finished but could be interesting and relatively simple}
 
-
-\subsection{Reflective Implementation}
-
 \section{Discussion}
 
 Performance evaluation (how long does it take to optimize)
+
+\subsection{Reflective Implementation}
 
 \subsection{Related \& Future Work}
 Fiat~\cite{deleware2015fiat}
