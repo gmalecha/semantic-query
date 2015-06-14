@@ -7,6 +7,7 @@
 \usepackage{xcolor}
 \usepackage{listings}
 \usepackage{lstcoq}
+\usepackage{comment}
 
 \lstset{ %
   numberbychapter=false, %
@@ -22,7 +23,7 @@
   xleftmargin=5pt,
   xrightmargin=5pt}
 
-\usepackage[bookmarks=true,colorlinks=true, linkcolor=MidnightBlue, citecolor=cyan]{hyperref}
+\usepackage[bookmarks=true,colorlinks=true, citecolor=cyan]{hyperref} %%linkcolor=MidnightBlue, 
 
 \newcommand{\FOR}{{\tt for} \ }
 \newcommand{\FORALL}{{\tt forall} \ }
@@ -343,7 +344,7 @@ title}$).
 
 
 \section{The Chase}
-%\label{sec:chase}
+\label{sec:chase}
 
 The chase is a confluent rewriting procedure that rewrites queries using EDs~\cite{foundations}.   Let
 
@@ -593,15 +594,14 @@ Definition q_LOR : set (string * string) :=
 \end{coq}
 As is well-known~\cite{monad}, monadic computations such as relational conjunctive queries can always be normalized into the flat form used in the first half of this paper, and our Coq library does this normalization (in a fully verified way) during optimization.
 
-\subsection{Monads in Coq}
-TODO: kill this section
-%Our Coq library is parametric in an underlying type of sets.  Mathematically, semantic optimization is sound for arbitrary commutative, idempotent monads 
+\subsection{Representing Queries in Coq}
+Our Coq library is parametric in an underlying type of sets.  Mathematically, semantic optimization is sound for arbitrary commutative, idempotent monads 
 
-%Before diving into the details, we begin with an overview of the core Coq definitions.
-%In a type theory such as Coq's there are numerous ways to define relations~\cite{}.
-%We can go purely logical and treat relations as predicates over tuples of values, or we can go computational and choose finite sets which themselves could be implemented in a multitude of ways.
-%We choose to make this polymorphism explicit in our development by abstractly describing the set implementations that are ``chaseable.''
-%We express the operations and their associated reasoning principles in the record shown in Figure~\ref{fig:chaseable-functor}.
+Before diving into the details, we begin with an overview of the core Coq definitions.
+In a type theory such as Coq's there are numerous ways to define relations~\cite{}.
+We can go purely logical and treat relations as predicates over tuples of values, or we can go computational and choose finite sets which themselves could be implemented in a multitude of ways.
+We choose to make this polymorphism explicit in our development by abstractly describing the set implementations that are ``chaseable.''
+We express the operations and their associated reasoning principles in the record shown in Figure~\ref{fig:chaseable-functor}.
 \begin{figure}[t]
 \label{fig:chaseable-functor}
 \begin{coq}
@@ -671,9 +671,24 @@ Next is \coqe{Mzero} which corresponds to the empty relation.
 \coqe{Mplus} is the cross-product of the two instances.
 \coqe{Mguard P m} is the same as \coqe{Mzero} if \coqe{P} is false and otherwise returns \coqe{m}.
 
+On top of these definitions we can layer some convience definitions that expose the extra structure present in queries and embedded dependencies.
+\begin{coq}
+Definition query {S T: Type}
+  (P : M S) (C : S -> bool) (E : S -> T) : M T :=
+  Mbind P (fun x => Mguard (C x) (Mret (E x))).
+\end{coq}
+Here, \coqe{P} represents the {\tt for}-clause, \coqe{C} represents the {\tt where}-clause, and \coqe{E} represents the {\tt return}-clause.
+Embedded dependencies can be defind similarly.
+\begin{coq}
+Definition embedded_dependency {S S': Type}
+  (F : M S) (Gf : S -> bool) (B : M S') (Gb : S -> S' -> bool) :=
+  Meq (query F Gf (fun x => x))
+      (query (Mbind F (fun x => Mbind B (fun y => Mret (x,y))))
+             (fun ab => Gf (fst ab) && Gb (fst ab) (snd ab))
+             (fun x => fst x)).
+\end{coq}
 
-
-
+We use the techniques described in later sections to normalize raw Coq code into this particular form.
 
 \subsection{Background: Tactic-based Programming}
 \label{sec:tactic-based}
@@ -808,10 +823,11 @@ As our tactics continue to fill in \coqe{?m1'} and \coqe{?m2'}, \coqe{?n} will b
 
 %% \greg{this is a very unfocused section}
 
+\begin{comment}
 \subsection{Normalization}
 \label{sec:normalization}
 
-The first phase of our optimization pipeline normalizes queries into the \FOR...\WHERE...\RETURN structure presented in Section~\ref{sec:queries}.
+The first step of our optimization pipeline normalizes queries into the {\tt for}...{\tt where}...{\tt return} structure presented in Section~\ref{sec:queries}.
 In Coq, we can define this structure as a function that takes the three pieces of the query and stitches them together into an instance.
 The definition is the following:
 \begin{coq}
@@ -819,7 +835,7 @@ Definition query {S T: Type}
   (P : M S) (C : S -> bool) (E : S -> T) : M T :=
   Mbind P (fun x => Mguard (C x) (Mret (E x))).
 \end{coq}
-Here, \coqe{P} represents the {\tt for}-clause which generates the tableau,
+Here, \coqe{P} represents the {\tt for}-clause that generates the tableau,
 \coqe{C} represents the conditional {\tt where}-clause, and \coqe{E} represents the {\tt return}-clause.
 In our representation, we use \coqe{Mplus} to construct a relational cross-product of two ``binds.''
 Thus, the normalized form of our movies query is the following:
@@ -829,11 +845,13 @@ query (Mplus Movies Movies)
       (fun x => ((fst x).(director), (snd x).(actor)))
 \end{coq}
 
-In addition to generating this term, in order to fit into our fully-verified pipeline we must also guarantee that the transformation yields an equivalent query.
-Within our shallow encoding we can perform this normalization by incrementally applying proven theorems that witness the soundness of individual transformations.
+%% In addition to generating this term, in order to fit into our fully-verified pipeline we must also generate a proof that guarantees that the transformation yields an equivalent instance.
+%% Within the shallow encoding we can perform this normalization by incrementally applying proven theorems that witness the soundness of individual transformations.
 
-The process begins by asking Coq to generate a unification variable representing the final answer and using it to witness the answer.
-We are then left to solve the goal \coqe{Meq ?1 q}, which we solve using a set of theorems crafted to specifically match on goals of this form.
+%% The process begins by asking Coq to generate a unification variable representing the final answer and using it to witness the answer.
+The phase starts on the goal \coqe{Meq ?1 q}.
+The first theorem that we apply is an administrative theorem to massage the goal into the form expected by the rest of the normalization process.
+%%  which we solve using a set of theorems crafted to specifically match on goals of this form.
 \begin{coq}
 Theorem prep_for_normal : forall {T} (q q' : M T),
   Meq q' (Mbind (query (Mret tt) (fun _ => true) (fun x => x))
@@ -841,10 +859,10 @@ Theorem prep_for_normal : forall {T} (q q' : M T),
   Meq q' q.
 Proof. ... Qed.
 \end{coq}
-When applied to the initial goal, the first theorem (\coqe{prep_for_normal}), produces a new goal where the right-hand-side of the equivalence now binds the empty query and then returns \coqe{q}.
+When applied to the initial goal, the first theorem (\coqe{prep_for_normal}), produces a new goal where left-hand side is unchanged and the right-hand-side of the equivalence now binds the empty query and then returns \coqe{q}.
 
-While not particularly insightful from a proof-theoretic point of view, this lays the groundwork for the remaining theorems to move components of \coqe{q} into the query.
-For example, \coqe{normal_pull_plus} moves a bind into the query.
+While not particularly insightful from a proof-theoretic point of view, this transformation lays the groundwork for the remaining theorems to move components of \coqe{q} into the query.
+For example, \coqe{normal_pull_plus} moves a bind from the instance and inserts it into the query.
 \begin{coq}
 Lemma normal_pull_plus
 : forall {T U V W : Type} (qb : M T) (qg : T -> bool) (qr : T -> U) x (y : _ -> _ -> M V),
@@ -856,37 +874,44 @@ Lemma normal_pull_plus
              (fun val : U => Mbind x (y val))).
 Proof. ... Qed.
 \end{coq}
-Concretely, applying \coqe{normal_pull_plus} to the goal produced by \coqe{prep_for_normal} produces a new goal that has shrunk the size of the query to normalize (by ``removing'' a bind) and placing it in the \FOR-clause of the \coqe{query} definition.
+Concretely, applying \coqe{normal_pull_plus} to the goal produced by \coqe{prep_for_normal} produces a new goal that has shrunk the size of the query to normalize (by ``removing'' a bind) and placing it in the {\tt for}-clause of the \coqe{query} definition.
 \begin{coq}
-show the goal?
-\end{coq}
-\greg{should I present these are rewriting lemmas instead? that is what they are in the actual code}
-
-The normalization process also includes lemmas for pulling \WHERE- and \RETURN-clauses.
-To handle nested structures such as \coqe{x <- (y <- Movies ; return y) ; return x} we preface the normalization step by rewriting with lemmas which flatten the query.
-For example \coqe{Mbind_assoc} (shown below) will convert the nested query above into \coqe{y <- Movies ; x <- return y ; return x}.
-\begin{coq}
-Lemma Mbind_assoc
-: forall (A B C : Type) (c1 : M A) (c2 : A -> M B)
-         (c3 : B -> M C),
-  Meq (Mbind (Mbind c1 c2) c3)
-      (Mbind c1 (fun x : A => Mbind (c2 x) c3))
+Meq ?m (x <- query (Mplus (Mret tt) Movie) (fun _ => true) (fun x => x) ;
+        y <- Movie ; guard ((snd x).(title) ?[=] y.(title)) ;
+        ret ((snd x).(title), y.(actor)))
 \end{coq}
 
-The main benefit (which we will see throughout the pipeline) is the ability to easily extend the transformations simply by proving relatively simple lemmas such as the ones above.
-For example, the above \coqe{normal_pull_plus} is not sufficient to handle nested queries where \coqe{x} could depend on the values that were previously bound.
-Normally, supporting this type of term manipulation would be quite painful since we would need to track the number of binders that we are under or generate fresh names.
-Instead, we can foist all of that complexity back onto Coq by phrasing the appropriate lemma and using Coq's higher-order unification to solve the problem for us.
-Using this technique, the generalization of \coqe{normal_pull_plus} to handle nested relations would be the following:
+It is important to notice that applying this theorem will happily lift non-atomic binds into the {\tt for}-clause.
+For example, if applied directly to the goal \coqe{x <- (y <- Movies ; guard (y ?[=] 1) ; return y) ; return x}, \coqe{normal_pull_plus} will construct the following term that is not in the desired normal form.
 \begin{coq}
-Lemma normal_pull_dplus_ret_id
-: forall {T U V W : Type} (qb : M T) qg x (y : _ -> _ -> M V),
-  Meq (Mbind (query qb qg (fun x => x))
-             (fun val : T => Mbind (x val) (y val)))
-      (Mbind (query (Mdplus qb x) (fun x => qg (fst x)) (fun x => (fst x, snd x)))
-             (fun val : T * W => y (fst val) (snd val))).
+x <- query (Mplus (Mret tt) (y <- Movies ; guard (y ?[=] 1)))
+           (fun _ => true) Mret ;
+return x
+\end{coq}
+To avoid this, we first perform a pre-processing phase that rewrites using a collection of lemmas which flatten nested binds and pushes guard expressions downwads toward the return.
+
+Beyond lifting binds, the normalization process also includes lemmas for lifting {\tt where}- and {\tt return}-clauses into the query.
+The later of these is slightly different because lifting the final {\tt return}-clause into the query marks the end of normalization.
+Therefore, unlike the other lemmas, \coqe{normal_pull_ret} does not have a premise.
+\begin{coq}
+Lemma normal_pull_ret
+: forall {T U V : Type} (qb : M T) qg (qr : T -> U) (y : _ -> V),
+  Meq (Mbind (query qb qg qr)
+             (fun val : U => Mret (y val)))
+      (query qb qg (fun x => y (qr x))).
 Proof. ... Qed.
 \end{coq}
+
+
+%% To handle nested structures such as  we preface the normalization step by rewriting with lemmas that flatten the query and push binds downward.
+%% For example \coqe{Mbind_assoc} (shown below) converts the nested query above into \coqe{y <- Movies ; x <- return y ; return x}.
+%% \begin{coq}
+%% Lemma Mbind_assoc
+%% : forall (A B C : Type) (c1 : M A) (c2 : A -> M B)
+%%          (c3 : B -> M C),
+%%   Meq (Mbind (Mbind c1 c2) c3)
+%%       (Mbind c1 (fun x : A => Mbind (c2 x) c3))
+%% \end{coq}
 
 The final result of normalization for the movies query is exactly the query presented in Section~\ref{sec:example}.
 In our syntax:
@@ -895,48 +920,71 @@ query (Mplus Movies Movies)
       (fun x => (fst x).(title) ?[=] (snd x).(title))
       (fun x => ((fst x).(director), (snd x).(actor)))
 \end{coq}
+\end{comment}
+
 
 \subsection{The Chase}
+\label{sec:ltac-chase}
 
-With a normalized query in hand, we begin chasing it using our embedded dependencies.
-The general approach is similar to that of normalization, we will use a ``prepping'' lemma to set up the goal into a form that we can automate and then use stepping lemmas to solve the goal one step at a time.
-
-\paragraph{Representing Embedded Dependencies}
-We first express the representation of embedded dependencies.
-Our definition is the standard one given in Section~\ref{sec:embedded-dependencies} and is encoded in the same way that we encode queries.
+With a normalized query in hand, we begin chasing it using embedded dependencies.
+We communicate the embedded dependencies to the tactic by expressing them within the goal.
+For example, we can optimize with the \coqe{title_director} embedded dependency using the following goal structure.
 \begin{coq}
-Definition embedded_dependency {S S': Type}
-  (F : M S) (Gf : S -> bool) (B : M S') (Gb : S -> S' -> bool) :=
-  Meq (query F Gf (fun x => x))
-      (query (Mbind F (fun x => Mbind B (fun y => Mret (x,y))))
-             (fun ab => Gf (fst ab) && Gb (fst ab) (snd ab))
-             (fun x => fst x)).
+title_director ->
+Meq ?q (query (Mplus Movies Movies)
+              (fun x => (fst x).(title) ?[=] (snd x).(title))
+              (fun x => ((fst x).(director), (snd x).(actor))))
 \end{coq}
 
-%% With an executable data model (e.g. finite sets) over queries with decidable equality on their return types, it is simple to prove that embedded dependencies hold for particular concrete databases.
+Chasing a query using an ED requires solving 4 problems.
+First, the tactic must find an embedded dependency to chase using.
+Next, the tactic finds a morphism from the binds of the query to the binds of the front of the ED (Section~\ref{sec:morphism-find}).
+Then, the tactic checks that the {\tt where}-clause implies the {\tt where}-clause of front of the ED under the mapping that our procedure found (Section~\ref{sec:side-condition}).
+Finally, before committing to the chase step, the tactic must ensure that doing so introduces new information (Section~\ref{sec:progress}).
 
-\paragraph{Traversing EDs}
+\subsubsection{Traversing EDs}
+\label{sec:traverse-ed}
 
-\greg{This section should go at the beginning of the chase section}
+In the movie example, there is only one embedded dependency to chase with, but in more complex examples such as the indexing example there are multiple EDs.
+To find an appropriate ED, we can simply exhaustively consider all of the user-supplied EDs.
+Demonstrating this serves as a useful primer for the more complicated next step.
 
-The previous sections have shown how to chase a single embedded dependency, chasing a collection of EDs is not much more difficult.
-Embedded dependencies are communicated via premises on the entailment, so all that remains is to non-deterministically select the appropriate ED.
-The approach here is the same as when we non-deterministically found the morphism; we simply perform an exhaustive backtracking search trying to chase each one until we succeed.
-For convenience we require that multiple EDs are combined with $\wedge$.
+When there are multiple candidate EDs, the search tactic must pick an expected representation.
+For our tactic, this is an implication with a conjunction as the premise.
+For example, if we EDs \coqe{A}, \coqe{B}, and \coqe{C} are all true, and we wish to optimize the query \coqe{q}, the goal posed to the tactic is the following:
+\begin{coq}
+A /\ B /\ C -> Meq ?q q
+\end{coq}
+
+Two lemmas allow us to exhaustively search these EDs.
+\begin{coq}
+Lemma ed_pick_left : forall {A B C : Prop},
+  (A -> C) ->
+  A /\ B -> C.
+Proof. ... Qed.
+Lemma ed_pick_right : forall {A B C : Prop},
+  (B -> C) ->
+  A /\ B -> C.
+Proof. ... Qed.
+\end{coq}
+
+
+%% The previous sections havee shown how to chase a single embedded dependency, chasing a collection of EDs is not much more difficult.
+%% Embedded dependencies are communicated via premises on the entailment, so all that remains is to non-deterministically select the appropriate ED.
+%% The approach here is the same as when we non-deterministically found the morphism; we simply perform an exhaustive backtracking search trying to chase each one until we succeed.
+%% For convenience we require that multiple EDs are combined with $\wedge$.
 
 
 
-\paragraph{Backtracking to Find a Morphism}
-With a representation of embedded dependencies in hand, first part of the chase step is to find a tableau homomorphism from the query to the front of the embedded dependency.
-This step is inherently more complex than normalization because it involves a backtracking search.
-Fundamentally, however, the approach is the same as for normalization.
+\subsubsection{Finding a Morphism}
+\label{sec:find-morphism}
+Given a ED, the first part of the chase step is to find a tableau homomorphism from the query to the front of the ED.
+In the explanation of the chase step in Section~\ref{sec:chase} the morphism was from the variables bound in the {\tt for}-clause to the variables bound in the front of the embedded dependency.
+In our movie query example this corresponds to a mapping that assigns values in $\{x,y\}$ to values in $\{m_1,m_2\}$.
 
-In the explanation of the chase step in Section~\ref{sec:chase} the morphism was from the variables bound in the \FOR-clause to the variables bound in the front of the embedded dependency.
-In our movie query example we are looking for a mapping that assigns values in $\{x,y\}$ to values in $\{m_1,m_2\}$.
-
-Since our queries are simply Coq terms, referencing these binders explicitly can be quite difficult, and, as we will see later, is not very extensible.
-Rather, we will encode our morphism as a function between the types being bound.
-In this example, the type of the \FOR-clause of the query is \coqe{Movie * Movie} and the type of the \FORALL-clause is also \coqe{Movie * Movie}, so we are looking for a function \coqe{h : Movie * Movie -> Movie * Movie}.
+Since our queries are simply Coq terms, referencing these binders explicitly can be quite difficult, and is not very extensible.
+Rather, we will encode our mapping of binders as a function between the types being bound.
+In this example, the type of the {\tt for}-clause of the query is \coqe{Movie * Movie} and the type of the {\tt forall}-clause is also \coqe{Movie * Movie}, so we are looking for a function \coqe{h : Movie * Movie -> Movie * Movie}.
 Looking at the query and the ED, there are 4 reasonable choices.
 \begin{coq}
 h x = (fst x, fst x)
@@ -944,7 +992,7 @@ h x = (fst x, snd x)
 h x = (snd x, fst x)
 h x = (snd x, snd x)
 \end{coq}
-Where \coqe{fst} is extracting the first element of the pair and \coqe{snd} is extracting the second element of the pair.
+Where \coqe{fst} extracts the first element of the pair and \coqe{snd} extracts the second.
 
 As before, we are going to construct these functions incrementally using particular theorems that represent individual steps of reasoning.
 Ultimately, our algorithm considers each value bound in the query and maps to to a value bound from the ED.
@@ -1042,6 +1090,8 @@ Ltac prove_query_isomorphism solver :=
 
 \greg{Note that we are removing some of the complexity from the tactics.}
 
+
+
 \subsection{Minimization}
 
 The final step in optimization is to remove extraneous binds from the query.
@@ -1076,6 +1126,23 @@ If we can not find a way to construct the information from the rest of the query
 
 \greg{Note, this is a bit incomplete because the current automation does not allow backwards minimization}
 
+\subsection{Extension}
+The main benefit (which we will see throughout the pipeline) is the ability to easily extend the transformations simply by proving relatively simple lemmas such as the ones above.
+For example, the above \coqe{normal_pull_plus} is not sufficient to handle nested queries where \coqe{x} could depend on the values that were previously bound.
+Normally, supporting this type of term manipulation would be quite painful since we would need to track the number of binders that we are under or generate fresh names.
+Instead, we can foist all of that complexity back onto Coq by phrasing the appropriate lemma and using Coq's higher-order unification to solve the problem for us.
+Using this technique, the generalization of \coqe{normal_pull_plus} to handle nested relations would be the following:
+\begin{coq}
+Lemma normal_pull_dplus_ret_id
+: forall {T U V W : Type} (qb : M T) qg x (y : _ -> _ -> M V),
+  Meq (Mbind (query qb qg (fun x => x))
+             (fun val : T => Mbind (x val) (y val)))
+      (Mbind (query (Mdplus qb x) (fun x => qg (fst x)) (fun x => (fst x, snd x)))
+             (fun val : T * W => y (fst val) (snd val))).
+Proof. ... Qed.
+\end{coq}
+
+
 \subsection{Non-Semantic Optimization}
 \greg{not finished but could be interesting and relatively simple}
 
@@ -1103,5 +1170,10 @@ computational reflection~\cite{}
 
 \bibliographystyle{plain}
 \bibliography{thesisbib}
+
+\appendix
+\section{Ltac Code}
+
+\greg{TODO}
 
 \end{document}
