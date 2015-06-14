@@ -113,7 +113,7 @@ The $\overrightarrow{(x \IN X)}$ are called {\it generators}.  A (conjunctive) {
 \begin{normalsize}
 $$ \FOR (g \IN Groups) \ (person \IN g) \ \ldots $$
 \end{normalsize}
-\item It is possible to interpret queries in arbitrary {\it monads with zeroes}, for example, the list monad or the bag monad.  However, the  optimization procedure described in this paper is only sound for monads that are commutative and idempotent~\cite{Popa99anequational}:
+\item It is possible to interpret queries in arbitrary {\it monads with zeroes and pluses}, for example, the list monad or the bag monad.  However, the  optimization procedure described in this paper is only sound for monads that are commutative and idempotent~\cite{Popa99anequational}:
 $$
 \FOR (x \IN X)(y \IN Y)  \cong \FOR (y \IN Y) (x \IN X) 
 $$
@@ -534,71 +534,76 @@ and no further steps with $C_1$ or $C_2$ are possible. Hence we have computed $Q
 %\end{eqnarray*}  
 %\end{normalsize}
 %Now we can see that the identity substitution is a homomorphism $Q^{\prime\prime} \leftrightarrow U$ (owing to the fact that $p.{\sf name} = c.{\sf name}$ and $p.{\sf age} = c.{\sf age}$), and since $chase(C',U) \cong U$, we know that $C, C' \vdash Q^{\prime\prime} \cong U$.  We established earlier that $C \vdash U \cong Q$ and that $C' \vdash Q'' \cong Q'$.  These facts allow us to conclude that $C, C' \vdash U \cong Q \cong Q' \cong Q''$.
-
+%\vpsace{-.1in}
 \section{Coq Development - Overview}
 
-We now discuss how we use Coq to optimize queries.
-For expository purposes, we demonstrate the techniques using the movie example from section~\ref{sec:tableaux-minimization}.
-We can express the movie query in Gallina with the following code:
+In the rest of this paper we demonstrate how to shallowly embed relational conjunctive queries into Coq and how to use dependent types and tactics to implement tableaux minimization as described in the first half of this paper.  We will continue to use the running movies example from the first half of the paper.  That query is expressed in Coq as:
 \begin{coq}
-Def q : M (string * string) :=
+Definition Movies : set (string * string * string) := ...
+
+Definition title x := fst x.
+Definition director x := fst (snd x).
+Definition actor x := snd (snd x).
+
+Definition q : set (string * string) :=
   m1 <- Movies ; m2 <- Movies ;
-  guard (m1.(title) = m2.(title)) ;
-  return (m1.(director), m2.(actor)).
+  guard (title m1 = title m2) ;
+  return (director m1, actor m2).
 \end{coq}
-Here, \coqe{q} is the name of the query.
-To the right of the colon is the query's type, i.e. \coqe{M (string * string)} represents a relation (\coqe{M}) that contains values which are pairs of strings.
+Here, \coqe{q} is the name of the query.  Our Coq query syntax is inspired by Haskell's syntax for monadic computations, and Coq's ``notation'' mechanism allows us to define infix operations such as \coqe{<-}.  Intuitively, \coqe{<-} means {\tt for}, \coqe{guard} means {\tt where}, and \coqe{return} means {\tt return}.  To the right of the colon is the query's type, \coqe{set (string * string)}, which represents a set that contains pairs of strings, and our Coq development is parametric in the implementation of the underlying type of sets.  For example, we can choose \coqe{set x := list x} and implement sets as lists, or choose \coqe{set x := x -> Prop} and implement sets as Coq ``ensembles''.  In fact, \coqe{set} need not even be a set monad; it need only be an arbitrary commutative, idempotent monad with zero and plus, which is why much of our Coq code refers to \coqe{M} (for monad) rather than \coqe{set}; see Figure~\ref{fig:chaseable-functor}.
 
-The syntax draws its inspiration from Haskell's syntax for monadic computations.
-\coqe{<-} intuitively means \FOR, \coqe{guard} means \WHERE, and \coqe{return} means \RETURN.
-Note that while this query follows exactly the form prescribed by SQL, not all raw queries will strictly follow this form.
-For example, if we wish to re-focus the above query on the movie ``Lord of the Rings'' we could introduce an additional guard condition after ``binding'' \coqe{m1}.
+%While this flexible syntax may make it easier to structure large queries, there are other benefits to it that we will see in Section~\ref{sec:low-level}.
+Given the above query, and a representation of the functional dependency from the introduction, \coqe{title_director_ed}, which we elide for now, we can ask Coq to automatically construct the minimized query as follows:
 \begin{coq}
-Definition q_LOR : M (string * string) :=
-  m1 <- Movies ;
-  guard (m1.(title) = ``Lord of the Rings'') ;
-  m2 <- Movies ;
-  guard (m1.(title) = m2.(title)) ;
-  return (m1.(director), m2.(actor)).
-\end{coq}
-While this flexible syntax may make it easier to structure large queries, there are other benefits to it that we will see in Section~\ref{sec:low-level}.
-
-The focus of our work is on query optimization.
-Given the above query, we can ask Coq to optimize it using the following code.
-\begin{coq}
-Definition optimized_query
-: { q$_{opt}$ : M (string * string) | title_director_ed $\vdash$ q$_{opt}$ = q }.
+Definition optimized_query: 
+{q$_{opt}$ : M (string * string) | title_director_ed $\vdash$ q$_{opt}$ = q}.
 optimize.
 Defined.
 \end{coq}
-Again the first line declares the name of a term.
-Now, the the right of the colon we have a more interesting type, noteably a dependent one.
-This syntax represents a dependent pair of a query (\coqe{q$_{opt}$}) of type \coqe{M (string * string)} and a proof of the proposition to the right of the vertical bar.
-Namely, this proof carries around a witness that under the assumption that the \coqe{title_director_ed} is provable about the database, the meaning of \coqe{q$_{opt}$} is the same as the meaning of \coqe{q}.
-Since we with Coq to fill in this value for us, we end the definition with a period and use the ``tactic'' \coqe{optimize} to discharge fill in the appropriate value.
-The keyword \coqe{Defined} signals the end of the definition since \coqe{optimize} completely fills in the term.
-
-We can look at the result of the optimization by asking Coq to print the first component of the pair.
+%Again the first line declares the name of a term.
+The type of \coqe{optimized_query} says that \coqe{optimized_query} is a pair of a query, \coqe{q$_{opt}$}, and a proof that \coqe{q$_{opt}$} is equivalent to \coqe{q} on instances satisfying \coqe{title_director_ed}.  Here $\vdash$ is an infix operation that defines when two queries are equal modulo some constraint.  The actual Coq term corresponding to \coqe{optimized_query} is \coqe{Defined} by the \coqe{optimize} tactic.  We can see the result of the optimization by asking Coq to print the first component of the pair:
 \begin{coq}
-Eval ... in (proj1_sig optimized_query).
-(* = x <- Movies ; return (x.(director), x.(actor))
- *   : M (string * string)
- *)
+Eval compute in (proj1_sig optimized_query).
+(* = x <- Movies ; return (director x, actor x)
+ *   : set (string * string)   *)
 \end{coq}
-Here, ``...'' elide the reduction strategy which tells Coq which symbols to keep abstract during reduction and the \coqe{proj1_sig} simply forgets the proof component.
+%and we see that the minimized query computed by Coq is indeed correct.
 
-\paragraph{Querying in Coq} While not necessarily a proxy for a real database, all of the queries are executable within Coq (our implementation uses an implementation of relations as lists which are quotiented to act as sets).
-Even on small examples (5 rows), the optimized implementation performs 2x faster than the non-optimized version.
-While a production database would likely do considerably faster (on considerably larger relations) it should be noted that the semantic optimization that we achieve in this example enables us to reduce the asymptotic running time \emph{in a fully verified way}.
+%Here, ``...'' elide the reduction strategy which tells Coq which symbols to keep abstract during reduction and the \coqe{proj1_sig} simply forgets the proof component.
 
-\subsection{Expressing Queries in Coq}
+ 
+%Now, the the right of the colon we have a more interesting type, noteably a dependent one.
+%This syntax represents a dependent pair of a query (\coqe{q$_{opt}$}) of type \coqe{M (string * string)} and a proof of the proposition to the right of the vertical bar.
+%Namely, this proof carries around a witness that under the assumption that the \coqe{title_director_ed} is provable about the database, the meaning of \coqe{q$_{opt}$} is the same as the meaning of \coqe{q}.
+%Since we with Coq to fill in this value for us, we end the definition with a period and use the ``tactic'' \coqe{optimize} to discharge fill in the appropriate value.
+%The keyword \coqe{Defined} signals the end of the definition since \coqe{optimize} completely fills in the term.
 
-Before diving into the details, we begin with an overview of the core Coq definitions.
-In a type theory such as Coq's there are numerous ways to define relations~\cite{}.
-We can go purely logical and treat relations as predicates over tuples of values, or we can go computational and choose finite sets which themselves could be implemented in a multitude of ways.
-We choose to make this polymorphism explicit in our development by abstractly describing the set implementations that are ``chaseable.''
-We express the operations and their associated reasoning principles in the record shown in Figure~\ref{fig:chaseable-functor}.
+
+\paragraph{Querying in Coq.} All of the queries described in this paper are executable within Coq, using an implementation of sets as lists.  Even on small examples (5 rows), the optimized query above performs 2x faster than the non-optimized version.
+While a production database would likely peform considerably faster, and on considerably larger relations, the semantic optimization that we achieve in this example enables us to reduce the query's asymptotic running time \emph{in a fully verified way}.
+
+\paragraph{Query Normalization.} In the first half of the paper, all of our queries were normalized into single {\tt for} clause, a single {\tt where} clause, and a single {\tt return} clause.  But in a language-integrated query system, we can relax this requirement.  For example, we could introduce an additional guard condition after ``binding'' \coqe{m1}.
+\begin{coq}
+Definition q_LOR : set (string * string) :=
+  m1 <- Movies ;
+  guard (title m1 = ``Lord of the Rings'') ;
+  m2 <- Movies ;
+  guard (title m1  = title m2 ) ;
+  return (director m1, actor m2).
+\end{coq}
+As is well-known~\cite{monad}, monadic computations such as relational conjunctive queries can always be normalized into the flat form used in the first half of this paper, and our Coq library does this normalization (in a fully verified way) during optimization.
+
+\subsection{Monads in Coq}
+TODO: kill this section
+%Our Coq library is parametric in an underlying type of sets.  Mathematically, semantic optimization is sound for arbitrary commutative, idempotent monads 
+
+%Before diving into the details, we begin with an overview of the core Coq definitions.
+%In a type theory such as Coq's there are numerous ways to define relations~\cite{}.
+%We can go purely logical and treat relations as predicates over tuples of values, or we can go computational and choose finite sets which themselves could be implemented in a multitude of ways.
+%We choose to make this polymorphism explicit in our development by abstractly describing the set implementations that are ``chaseable.''
+%We express the operations and their associated reasoning principles in the record shown in Figure~\ref{fig:chaseable-functor}.
 \begin{figure}[t]
+\label{fig:chaseable-functor}
 \begin{coq}
 Class DataModel (M : Type -> Type) : Type :=
 { Mret  : forall {T}, T -> M T
@@ -608,9 +613,10 @@ Class DataModel (M : Type -> Type) : Type :=
      fun _ _ m1 m2 => Mbind m1 (fun x => Mbind m2 (fun y => Mret (x,y)))
 ; Mguard : forall {T}, bool -> M T -> M T :=
      fun _ P m => if p then m else Mzero
-; Mimpl : forall {T}, M T -> M T -> Prop
+ (* plus many axioms *)    
 }.
 \end{coq}
+%; Mimpl : forall {T}, M T -> M T -> Prop
 
 %%   (** theorems **)
 %% ; Reflexive_Mimpl : forall {A}, Reflexive (@Mimpl A)

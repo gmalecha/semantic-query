@@ -1,0 +1,94 @@
+\begin{thebibliography}{10}
+
+\bibitem{foundations}
+Serge Abiteboul, Richard Hull, and Victor Vianu.
+\newblock {\em Foundations of Databases}.
+\newblock Addison-Wesley, 1995.
+
+\bibitem{BW}
+Michael Barr and Charles Wells, editors.
+\newblock {\em Category theory for computing science, 2nd ed.}
+\newblock 1995.
+
+\bibitem{coqdb}
+Véronique Benzaken, Évelyne Contejean, and Stefania Dumbrava.
+\newblock A coq formalization of the relational data model.
+\newblock In Zhong Shao, editor, {\em Programming Languages and Systems},
+  volume 8410 of {\em Lecture Notes in Computer Science}, pages 189--208.
+  Springer Berlin Heidelberg, 2014.
+
+\bibitem{coq:coq}
+Yves Bertot and Pierre Cast\'eran.
+\newblock {\em Interactive Theorem Proving and Program Development. Coq'Art:
+  The Calculus of Inductive Constructions}.
+\newblock Texts in Theoretical Computer Science. Springer Verlag, 2004.
+
+\bibitem{DBLP:conf/popl/DelawarePGC15}
+Benjamin Delaware, Cl{\'{e}}ment Pit{-}Claudel, Jason Gross, and Adam Chlipala.
+\newblock Fiat: Deductive synthesis of abstract data types in a proof
+  assistant.
+\newblock In {\em Proceedings of the 42nd Annual {ACM} {SIGPLAN-SIGACT}
+  Symposium on Principles of Programming Languages, {POPL} 2015, Mumbai, India,
+  January 15-17, 2015}, pages 689--700, 2015.
+
+\bibitem{Deutsch:2006:QRC:1121995.1122010}
+Alin Deutsch, Lucian Popa, and Val Tannen.
+\newblock Query reformulation with constraints.
+\newblock {\em SIGMOD Rec.}, 35:65--73, March 2006.
+
+\bibitem{opaleye}
+Tom Ellis.
+\newblock Opaleye.
+\newblock Technical report, {\sf
+  http://github.com/tomjaguarpaw/haskell-opaleye}.
+
+\bibitem{mpj:jones1996a}
+Benedict~R. Gaster and Mark~P. Jones.
+\newblock A polymorphic type system for extensible records and variants.
+\newblock Technical Report NOTTCS-TR-96-3, Department of CS, University of
+  Nottingham, November 1996.
+
+\bibitem{monad}
+Torsten Grust.
+\newblock {\em Monad Comprehensions. A Versatile Representation for Queries. In
+  The Functional Approach to Data Management, P.M.D. Gray and L. Kerschberg and
+  P.J.H. King and A. Poulovassilis (eds.)}.
+\newblock Springer Verlag, 2003.
+
+\bibitem{haas:clio}
+Laura~M. Haas, Mauricio~A. Hern\'{a}ndez, Howard Ho, Lucian Popa, and Mary
+  Roth.
+\newblock Clio grows up: from research prototype to industrial tool.
+\newblock In {\em SIGMOD}, 2005.
+
+\bibitem{Cheng:1999:ITS:645925.671357}
+Qi~heng, Jarek Gryz, Fred Koo, T.~Y.~Cliff Leung, Linqi Liu, Xiaoyan Qian, and
+  K.~Bernhard Schiefer.
+\newblock Implementation of two semantic query optimization techniques in db2
+  universal database.
+\newblock VLDB, 1999.
+
+\bibitem{755736}
+S.~Kazem Lellahi and Val Tannen.
+\newblock A calculus for collections and aggregates.
+\newblock In {\em CTCS '97}, 1997.
+
+\bibitem{Malecha:2010:TVR:1706299.1706329}
+Gregory Malecha, Greg Morrisett, Avraham Shinnar, and Ryan Wisnesky.
+\newblock Toward a verified relational database management system.
+\newblock In {\em Proceedings of the 37th annual ACM SIGPLAN-SIGACT symposium
+  on Principles of programming languages}, POPL '10, pages 237--248, New York,
+  NY, USA, 2010. ACM.
+
+\bibitem{Popa99anequational}
+Lucian Popa and Val Tannen.
+\newblock An equational chase for path-conjunctive queries, constraints, and
+  views.
+\newblock In {\em ICDT}, 1999.
+
+\bibitem{tannen:1992:NEQ:645500.655920}
+Val Tannen, Peter Buneman, and Limsoon Wong.
+\newblock Naturally embedded query languages.
+\newblock ICDT '92, pages 140--154, London, UK, 1992. Springer-Verlag.
+
+\end{thebibliography}
