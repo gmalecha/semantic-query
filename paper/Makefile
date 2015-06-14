@@ -5,4 +5,4 @@ coqsem.pdf: coqsem.tex
 	pdflatex --halt-on-error coqsem
 
 clean:
-	@ rm -f coqsem.aux coqsem.out coqsem.log coqsem.pdf
+	@ rm -f coqsem.aux coqsem.out coqsem.log coqsem.pdf coqsem.bbl coqsem.blg
