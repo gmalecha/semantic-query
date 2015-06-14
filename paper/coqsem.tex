@@ -593,7 +593,77 @@ While a production database would likely do considerably faster (on considerably
 
 \subsection{Expressing Queries in Coq}
 
-\greg{We need to get the reader familiar with the notations and auxiliary definitions, e.g. Mplus, Mbind, Mret, Mmap, etc.}
+Before diving into the details, we begin with an overview of the core Coq definitions.
+In a type theory such as Coq's there are numerous ways to define relations~\cite{}.
+We can go purely logical and treat relations as predicates over tuples of values, or we can go computational and choose finite sets which themselves could be implemented in a multitude of ways.
+We choose to make this polymorphism explicit in our development by abstractly describing the set implementations that are ``chaseable.''
+We express the operations and their associated reasoning principles in the record shown in Figure~\ref{fig:chaseable-functor}.
+\begin{figure}[t]
+\begin{coq}
+Class DataModel (M : Type -> Type) : Type :=
+{ Mret  : forall {T}, T -> M T
+; Mbind : forall {T U}, M T -> (T -> M U) -> M U (* Mbind m k = x <- m ; k *)
+; Mzero : forall {T}, M T
+; Mimpl : forall {T}, M T -> M T -> Prop
+; Mplus : forall {T U}, M T -> M U -> M (T * U) :=
+     fun _ _ m1 m2 => Mbind m1 (fun x => Mbind m2 (fun y => Mret (x,y)))
+; Mguard : forall {T}, bool -> M T -> M T :=
+     fun _ P m => if p then m else Mzero
+}.
+
+  (** theorems **)
+; Reflexive_Mimpl : forall {A}, Reflexive (@Mimpl A)
+; Transitive_Mimpl : forall {A}, Transitive (@Mimpl A)
+
+; Proper_Mbind_impl : forall {A B},
+    Proper (Mimpl ==> (pointwise_relation _ Mimpl) ==> Mimpl) (@Mbind A B)
+; Proper_Mret_impl : forall {A},
+    Proper (eq ==> Mimpl) (@Mret A)
+
+; Mbind_assoc : forall {A B C} (c1 : M A) (c2 : A -> M B) (c3 : B -> M C),
+    Meq (Mbind (Mbind c1 c2) c3)
+        (Mbind c1 (fun x => Mbind (c2 x) c3))
+; Mbind_Mret : forall {A B} (x : A) (c : A -> M B),
+    Meq (Mbind (Mret x) c) (c x)
+; Mret_Mbind : forall {A} (c : M A),
+    Meq (Mbind c Mret) c
+; Mbind_Mzero : forall {A B : Type} (x : A -> M B), Meq (Mbind Mzero x) Mzero
+; Mbind_ignore : forall {T U} (x : M T) (y : M U),
+              Mimpl (Mbind x (fun _ => y)) y
+; Mimpl_Mzero : forall {T} (c : M T), Mimpl Mzero c
+
+; Mbind_perm : forall {T U V} (m1 : M T) (m2 : M U) (f : T -> U -> M V),
+    Meq (Mbind m1 (fun x => Mbind m2 (f x)))
+        (Mbind m2 (fun y => Mbind m1 (fun x => f x y)))
+; Mbind_dup : forall {T U} (m : M T) (f : T * T -> M U),
+    Mimpl (Mbind m (fun x => f (x,x)))
+          (Mbind m (fun x => Mbind m (fun y => f (x,y))))
+
+; chaseable : forall (S S' T U : Type)
+    (P : M S) (C : S -> bool) (E : S -> T)
+    (F : M S') (Gf : S' -> bool) (B : M U) (Gb : S' -> U -> bool) :
+    (edc : embedded_dependency F Gf B Gb)
+    (h : S -> S'),
+    Mimpl (Mmap h P) F ->
+    forall x, C x = true -> Gf (h x) = true ->
+    Meq (query P C E)
+        (query (Mplus P B)
+               (fun ab => C (fst ab) && Gb (h (fst ab)) (snd ab))
+               (fun ab => E (fst ab))).
+\end{coq}
+
+The interface is based on Haskell's interface for monads and functors.
+\coqe{Mret v} is the function that corresponds to the singleton relation containing only the value \coqe{v}.
+\coqe{Mbind m k} is the function that corresponds to the union of all relations \coqe{k x} for any \coqe{x} in the \coqe{m} relation.
+Following Haskell convention, we will write \coqe{x <- m ; k} for \coqe{Mbind x (fun x => k)} where \coqe{x} occurs free in \coqe{k}.
+Next is \coqe{Mzero} which corresponds to the empty relation.
+
+
+\caption{Abstractly representing the functors \coqe{M} that correspond to ``chaseable'' queries.}
+\label{fig:chaseable-functor}
+\end{figure}
+
+
 
 \subsection{Background: Tactic-based Programming}
 \label{sec:tactic-based}
@@ -835,6 +905,15 @@ Definition embedded_dependency {S S': Type}
 
 %% With an executable data model (e.g. finite sets) over queries with decidable equality on their return types, it is simple to prove that embedded dependencies hold for particular concrete databases.
 
+\paragraph{Traversing EDs}
+
+\greg{This section should go at the beginning of the chase section}
+
+The previous sections have shown how to chase a single embedded dependency, chasing a collection of EDs is not much more difficult.
+Embedded dependencies are communicated via premises on the entailment, so all that remains is to non-deterministically select the appropriate ED.
+The approach here is the same as when we non-deterministically found the morphism; we simply perform an exhaustive backtracking search trying to chase each one until we succeed.
+For convenience we require that multiple EDs are combined with $\wedge$.
+
 
 
 \paragraph{Backtracking to Find a Morphism}
@@ -952,16 +1031,6 @@ Ltac prove_query_isomorphism solver :=
 
 
 \greg{Note that we are removing some of the complexity from the tactics.}
-
-
-\paragraph{Traversing EDs}
-
-\greg{This section should go at the beginning of the chase section}
-
-The previous sections have shown how to chase a single embedded dependency, chasing a collection of EDs is not much more difficult.
-Embedded dependencies are communicated via premises on the entailment, so all that remains is to non-deterministically select the appropriate ED.
-The approach here is the same as when we non-deterministically found the morphism; we simply perform an exhaustive backtracking search trying to chase each one until we succeed.
-For convenience we require that multiple EDs are combined with $\wedge$.
 
 \subsection{Minimization}
 
