@@ -591,70 +591,142 @@ Here, ``...'' elide the reduction strategy which tells Coq which symbols to keep
 Even on small examples (5 rows), the optimized implementation performs 2x faster than the non-optimized version.
 While a production database would likely do considerably faster (on considerably larger relations) it should be noted that the semantic optimization that we achieve in this example enables us to reduce the asymptotic running time \emph{in a fully verified way}.
 
+\subsection{Expressing Queries in Coq}
+
+\greg{We need to get the reader familiar with the notations and auxiliary definitions, e.g. Mplus, Mbind, Mret, Mmap, etc.}
+
 \subsection{Background: Tactic-based Programming}
+\label{sec:tactic-based}
 
-The ``standard'' approach to developing an algorithm such as the chase in Coq would be to program it in Gallina, Coq's total, functional programming language.
-By the Curry-Howard correspondence~\cite{} this programming language is also a logic where propositions are types and programs are proofs.
-A more complete description of the correspondence can be found in a variety of sources~\cite{}.
-We will return to this approach in more detail in Section~\ref{sec:??}, in this work we develop our optimization in a different way.
+The core of the Coq Proof Assistant is Gallina, a pure functional programming language, which by the Curry-Howard correspondence~\cite{} is also a logic.
+However, Coq also features a partial, untyped ``tactic'' language called \ltac{} which can be used to construct terms in a semi-imperative style.
+\ltac{} is a meta-language in Coq, in much the same way that macros are a meta-language in C++.
+\ltac{} is evaluated externally to the kernel and therefore produces terms that are then passed to the kernel.
+This allows us to use \ltac{} to optimize terms before the kernel executes them.
 
-In addition to Gallina, Coq also comes with another programming language, \ltac.
-Unlike Gallina, which is strongly-typed and pure, \ltac\ is untyped and partial.
-\ltac\ is a proof scripting language that is used to construct proof terms in an imperative style.
-In this section we will discuss the key aspects of \ltac\ using a simple example for implementing addition.
-\ltac\ is centered around manipulating Gallina terms.
+The standard use of \ltac{} is to prove theorems via ``proof scripts'' that express the way the proof should proceed.
+These individual steps, called ``tactics,'' then generate an underlying proof term in Gallina that is later checked by the kernel.
+This work flow is built into the semantic of \ltac{} because \ltac{} tactics run on particular proof obligations or goals (e.g. \coqe{x + y = y + x}).
+In the general use of \ltac{} these goals are fully determined and it is simply the tactic's job to find a suitable proof.
 
-
-The most common use of \ltac\ is to construct proofs of Gallina propositions.
-For example, proving that \coqe{x + y = y + x} can be done by using the Gallina theorem that proves the commutativity of addition, i.e.
+In this work we will be using \ltac{} in a slightly different way.
+Instead of being given a fully specified goal, we will be given a partially specified goal that specifies a constraint on a unification variable that the tactic will seek to fill in while solving the proof.
+Just to get our feet wet, consider the following goal.
 \begin{coq}
-Theorem plus_comm : forall (n m : nat), n + m = m + n.
+Meq ?n (x <- Movie ; y <- Movie ; ret x)
+\end{coq}
+Here, \coqe{?n} is the unification variable that we are trying to fill in and the constraint is that it must be equivalent to the query \coqe{x <- Movie ; y <- Movie ; ret x}.
+We could simply pick \coqe{?n} to be the full query \coqe{x <- Movie ; y <- Movie ; ret x}, but that would require us to do an unnecessary join.
+
+Instead we will optimize the query by appealing to verified manipulations of the terms.
+For example, the following is a provable transformation.
+\begin{coq}
+Lemma Mbind_dedup : forall {T U} (m : M T) (k : T -> M U),
+  Meq (Mbind m k) (Mbind m (fun x => Mbind m (fun _ => k x))).
 Proof. ... Qed.
 \end{coq}
-In \ltac{} we can apply this theorem using the \coqe{apply} tactic.
+First, because \coqe{Meq} is an equivalence relation, we can use \ltac's \coqe{setoid_rewrite} to rewrite using the relation.
+Running \coqe{setoid_rewrite <- Mbind_dedup} on the goal above results in the following:
 \begin{coq}
-(* x, y : nat
- * ==============
- * x + y = y + x
- *)
-apply plus_comm. (* => goal solved *)
+Meq ?n (x <- Movie ; ret x)
 \end{coq}
-The implementation of \coqe{apply} unifies \coqe{x + y = y + x} with \coqe{?n + ?m = ?m + ?n} where the question mark variables (e.g. \coqe{?n}) are flexible unification variables that the unification can pick values for.
-To solve this problem, the unification algorithm picks \coqe{?n $\mapsto$ x} and \coqe{?m $\mapsto$ y}.
+Note that this does \emph{not} solve the unification variable \coqe{?n}; only the right-hand-side of the \coqe{Meq} is changed.
+Further, with the appropriate definitions, rewriting can happen deep within larger terms and can therefore be useful for operations such as re-associating binds or distributing operations.
 
-In addition to \coqe{apply}, \ltac{} also provides \coqe{rewrite} to perform rewriting by user-defined relations.
-Rewriting can be considerably more flexible than direct function application but works in much the same way.
-Generalizing the goal above to \coqe{(x + y) * 3 = (y + x) * 3} makes \coqe{plus_comm} no longer immediately apply, but since equality is a transitive relation we can use \ltac{} to rewrite in the conclusion and then solve the goal by the reflexivity of equality.
+The ability for rewriting to apply deep within terms can also make it somewhat unpredicatable.
+It is up to Coq's unification heuristics to determine which term is rewritten if there are two possibilities.
+When we need to do more fine-tuned term manipulation we often prefer to use the more primitive \coqe{apply} tactic.
+Applying \coqe{Mbind_dedup} directly to this goal solves it with the same unification as above but this time instantiates \coqe{?n} with \coqe{x <- Movie ; ret x}.
+
+When building optimization procedures in \ltac{}, \coqe{apply} often ammounts to the core reasoning tool.
+We structure manipulation by applying theorems that express subproblems as premises and use \ltac{} ``chaining'' to solve these subproblems.
+Consider the following (slightly contrived) example.
 \begin{coq}
-(* x, y : nat
- * ==============
- * (x + y) * 3 = (y + x) * 3
- *)
-rewrite plus_comm.
-(* x, y : nat
- * ==============
- * (y + x) * 3 = (y + x) * 3
- *)
-reflexivity. (* => goal solved *)
+Meq ?n (Mplus a b)
 \end{coq}
-
-In addition to solving concrete goals such as the ones above, \ltac{} is also able to manipulate unification variables directly.
-Take the goal \coqe{?x = 3} for example.
-The \coqe{reflexivity} tactic will solve this goal by instantiating \coqe{?x} with the value 3.
-These unification variables are commonly used when proving existential quantifiers.
-For example, in the following goal we use \coqe{eexists} to introduce a new unification varible for \coqe{x} and then solve the resulting equation with \coqe{reflexivity}.
+If we wish to optimize \coqe{a} and \coqe{b} independently  then we can apply the following lemma.
 \begin{coq}
-(* ==================
- * exists x : nat , x = 3
- *)
-$\texttt{\textcolor{dkblue}{eexists}}$.
-(* ==================
- * ?x = 3
- *)
-reflexivity. (* => goal solved *)
+Lemma opt_plus : forall {T U} (m1 m1' : M T) (m2 m2' : M U),
+  Meq m1' m1 ->
+  Meq m2' m2 ->
+  Meq (Mplus m1' m2') (Mplus m1 m2).
 \end{coq}
+When we apply this lemma to the above goal, we expect \coqe{m1} and \coqe{m2} to be completely determined but we expect \coqe{m1'} and \coqe{m2'} to be new unification variables.
+Because the tactic will introduce new unification variables, we use the \coqe{eapply} tactic.
+Running \coqe{eapply opt_plus} on the above goal yields the following sub-goals
+\begin{center}
+\begin{tabular}{ccc}
+\lstinline!Meq ?m1' m1! & \qquad & \lstinline!Meq ?m2' m2! \\
+\end{tabular}
+\end{center}
+while at the same time instantiating \coqe{?n} with \coqe{Mplus ?m1' ?m2'}.
+As our tactics continue to fill in \coqe{?m1'} and \coqe{?m2'}, \coqe{?n} will be automatically updated to reflect these changes.
 
-\greg{this is a very unfocused section}
+
+
+
+%% The ``standard'' approach to developing an algorithm such as the chase in Coq would be to program it in Gallina, Coq's pure functional programming language.
+%% By the Curry-Howard correspondence~\cite{} this programming language is also a logic where propositions are types and programs are proofs.
+%% A more complete description of the correspondence can be found in a variety of sources~\cite{}.
+%% We will return to this approach in more detail in Section~\ref{sec:??}, in this work we develop our optimization in a different way.
+
+%% In addition to Gallina, Coq also comes with another programming language, \ltac.
+%% Unlike Gallina, which is strongly-typed and pure, \ltac\ is untyped and partial.
+%% \ltac\ is a proof scripting language that is used to construct proof terms in an imperative style.
+%% In this section we will discuss the key aspects of \ltac\ using a simple example for implementing addition.
+%% \ltac\ is centered around manipulating Gallina terms.
+
+
+%% The most common use of \ltac\ is to construct proofs of Gallina propositions.
+%% For example, proving that \coqe{x + y = y + x} can be done by using the Gallina theorem that proves the commutativity of addition, i.e.
+%% \begin{coq}
+%% Theorem plus_comm : forall (n m : nat), n + m = m + n.
+%% Proof. ... Qed.
+%% \end{coq}
+%% In \ltac{} we can apply this theorem using the \coqe{apply} tactic.
+%% \begin{coq}
+%% (* x, y : nat
+%%  * ==============
+%%  * x + y = y + x
+%%  *)
+%% apply plus_comm. (* => goal solved *)
+%% \end{coq}
+%% The implementation of \coqe{apply} unifies \coqe{x + y = y + x} with \coqe{?n + ?m = ?m + ?n} where the question mark variables (e.g. \coqe{?n}) are flexible unification variables that the unification can pick values for.
+%% To solve this problem, the unification algorithm picks \coqe{?n $\mapsto$ x} and \coqe{?m $\mapsto$ y}.
+
+%% In addition to \coqe{apply}, \ltac{} also provides \coqe{rewrite} to perform rewriting by user-defined relations.
+%% Rewriting can be considerably more flexible than direct function application but works in much the same way.
+%% Generalizing the goal above to \coqe{(x + y) * 3 = (y + x) * 3} makes \coqe{plus_comm} no longer immediately apply, but since equality is a transitive relation we can use \ltac{} to rewrite in the conclusion and then solve the goal by the reflexivity of equality.
+%% \begin{coq}
+%% (* x, y : nat
+%%  * ==============
+%%  * (x + y) * 3 = (y + x) * 3
+%%  *)
+%% rewrite plus_comm.
+%% (* x, y : nat
+%%  * ==============
+%%  * (y + x) * 3 = (y + x) * 3
+%%  *)
+%% reflexivity. (* => goal solved *)
+%% \end{coq}
+
+%% In addition to solving concrete goals such as the ones above, \ltac{} is also able to manipulate unification variables directly.
+%% Take the goal \coqe{?x = 3} for example.
+%% The \coqe{reflexivity} tactic will solve this goal by instantiating \coqe{?x} with the value 3.
+%% These unification variables are commonly used when proving existential quantifiers.
+%% For example, in the following goal we use \coqe{eexists} to introduce a new unification varible for \coqe{x} and then solve the resulting equation with \coqe{reflexivity}.
+%% \begin{coq}
+%% (* ==================
+%%  * exists x : nat , x = 3
+%%  *)
+%% $\texttt{\textcolor{dkblue}{eexists}}$.
+%% (* ==================
+%%  * ?x = 3
+%%  *)
+%% reflexivity. (* => goal solved *)
+%% \end{coq}
+
+%% \greg{this is a very unfocused section}
 
 \subsection{Normalization}
 \label{sec:normalization}
@@ -925,7 +997,7 @@ If we can not find a way to construct the information from the rest of the query
 
 \greg{Note, this is a bit incomplete because the current automation does not allow backwards minimization}
 
-\subsection{Scheduling}
+\subsection{Non-Semantic Optimization}
 \greg{not finished but could be interesting and relatively simple}
 
 \section{Discussion}
