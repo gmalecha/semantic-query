@@ -40,7 +40,7 @@ Section Movies.
        Mguard (x.(title) ?[ eq ] y.(title)) (Mret (x.(director),y.(actor))))).
 
     Example normalized_ex1' : { x : M (string * string) | Meq x ex1 }.
-    execute0 normalize.
+    Time execute0 normalize.
     Defined.
 
     Example normalized_ex1 :=
@@ -76,7 +76,7 @@ Section Movies.
     Example universal_ex1'
     : { x : M (string * string)
       | EdsSound (title_implies_director :: nil) -> Meq x normalized_ex1 }.
-    execute1 chase solver.
+    Time execute1 chase solver.
     Defined.
 
     Definition universal_ex1 :=
@@ -89,7 +89,7 @@ Section Movies.
     (******************)
 
     Example minimized_ex1' : { x : _ | Meq x universal_ex1 }.
-    execute1 minimize solver'.
+    Time execute1 minimize solver'.
     Defined.
 
     Definition minimized_ex1 :=
@@ -101,33 +101,14 @@ Section Movies.
     (***************)
 
     Definition finished_ex1 : { m : _ | Meq m minimized_ex1 }.
-    execute0 simplifier.
+    Time execute0 simplifier.
     Defined.
 
     Eval cbv beta iota zeta delta [ Mmap finished_ex1 proj1_sig unconditional_transitive unconditional_simpl query ]
       in (proj1_sig finished_ex1).
 
-    (** TODO: This is incomplete **)
-    Ltac continue tac :=
-      (first [ refine (@refine_transitive _ _ _ _ _ _ _ _)
-             | refine (@refine_transitive_under _ _ _ _ _ _ _ _ _) ];
-       [ shelve | | ]); [ once  tac.. | ].
-    Ltac optimize solver :=
-      prep ;
-      lazymatch goal with
-      | |- Meq _ _ =>
-        continue normalize ;
-        continue ltac:(idtac; minimize solver) ;
-        simplifier
-      | |- _ -> Meq _ _ =>
-        continue normalize ;
-        continue ltac:(idtac; chase solver) ;
-        continue ltac:(idtac; minimize solver) ;
-        simplifier
-      end.
-
     Definition optimized : { m : _ | EdsSound (title_implies_director :: nil) -> Meq m ex1 }.
-    optimize solver'.
+    Time optimize solver'.
     Defined.
 
     Eval cbv beta iota zeta delta [ Mmap finished_ex1 proj1_sig optimized ]

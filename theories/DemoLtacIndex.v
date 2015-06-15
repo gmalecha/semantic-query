@@ -48,18 +48,18 @@ Section Index.
               (Mret (p.(name)))).
 
     Example normalized_ex1' : { x : M _ | Meq x ex1 }.
-    execute0 normalize.
+    Time execute0 normalize.
     Defined.
 
     Example normalized_ex1 :=
       Eval cbv beta iota zeta delta [ proj1_sig normalized_ex1' ]
       in (proj1_sig normalized_ex1').
-    Print normalized_ex1.
 
     (** Chasing **)
     (*************)
 
     Ltac solver :=
+      pg ;
       intros;
       repeat match goal with
              | H : andb ?X ?Y = true |- _ =>
@@ -77,27 +77,33 @@ Section Index.
              | |- andb _ _ = true =>
                apply Bool.andb_true_iff ; split
              | H : _ ?[ _ ] _ = true |- _ => eapply rel_dec_true_eq in H; eauto with typeclass_instances
+             | |- _ && _ = true =>
+               eapply Bool.andb_true_iff ; split
+             | |- _ ?[ _ ] _ = true =>
+               eapply rel_dec_eq_true
              end ;
       repeat first [ solve [ eauto using rel_dec_eq_true with typeclass_instances ]
                    | f_equal ].
 
+    Goal (forall x : person,
+ age x ?[ gt ] 16 && age x ?[ lt ] 18 = true -> age x ?[ lt ] 21 = true).
+      solver'.
+
     Example universal_ex1'
     : { x : M _
       | EdsSound (under_21_is_child :: children_are_people :: nil) -> Meq x normalized_ex1 }.
-    execute1 chase solver. (** TODO: Figure out what is wrong here **)
+    Time execute1 chase solver'. (** TODO: Figure out what is wrong here **)
     Defined.
 
     Definition universal_ex1 :=
       Eval cbv beta zeta delta [ universal_ex1' proj1_sig conditional_transitive conditional_simpl ]
       in (proj1_sig universal_ex1').
 
-    Eval unfold universal_ex1 in universal_ex1.
-
     (** Minimization **)
     (******************)
 
-    Example minimized_ex1' : { x : _ | Meq x universal_ex1 }.
-    execute1 minimize solver'.
+    Example minimized_ex1' : { x : _ | EdsSound (under_21_is_child :: children_are_people :: nil) -> Meq x universal_ex1 }.
+    Time execute1 minimize solver'.
     Defined.
 
     Definition minimized_ex1 :=
@@ -109,34 +115,15 @@ Section Index.
     (***************)
 
     Definition finished_ex1 : { m : _ | Meq m minimized_ex1 }.
-    execute0 simplifier.
+    Time execute0 simplifier.
     Defined.
 
     Eval cbv beta iota zeta delta [ Mmap finished_ex1 proj1_sig unconditional_transitive unconditional_simpl query ]
       in (proj1_sig finished_ex1).
 
-    (** TODO: This is incomplete **)
-    Ltac continue tac :=
-      (first [ refine (@refine_transitive _ _ _ _ _ _ _ _)
-             | refine (@refine_transitive_under _ _ _ _ _ _ _ _ _) ];
-       [ shelve | | ]); [ once  tac.. | ].
-    Ltac optimize solver :=
-      prep ;
-      lazymatch goal with
-      | |- Meq _ _ =>
-        continue normalize ;
-        continue ltac:(idtac; minimize solver) ;
-        simplifier
-      | |- _ -> Meq _ _ =>
-        continue normalize ;
-        continue ltac:(idtac; chase solver) ;
-        continue ltac:(idtac; minimize solver) ;
-        simplifier
-      end.
-
     Definition optimized
     : { m : _ | EdsSound (under_21_is_child :: children_are_people :: nil) -> Meq m ex1 }.
-    optimize solver'.
+    Time optimize solver'.
     Defined.
 
     Eval cbv beta iota zeta delta [ Mmap finished_ex1 proj1_sig optimized ]

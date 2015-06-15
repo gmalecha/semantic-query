@@ -5,7 +5,8 @@ ListModel.v
 PredModel.v
 ChaseShallow.v
 LtacChase.v
-DemoLtac.v
+DemoLtacMovies.v
+DemoLtacIndex.v
 
 Types.v
 Expr.v

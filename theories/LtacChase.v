@@ -392,7 +392,7 @@ Ltac prove_query_morphism solver :=
         | simpl ; solve [ solver ]
         | simpl ; solve [ solver ] ]).
 
-Ltac prove_query_isomorphism solver :=
+Ltac prove_query_homomorphic_equivalent solver :=
   match goal with
   | |- Meq ?A ?B =>
     try unfold A ; try unfold B ;
@@ -407,7 +407,7 @@ Ltac chase_ed solver :=
           | refine (@chase_sound_apply _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) ] ;
       [ shelve
       | solve [ find_bind_morphism ]
-      | first [ let forget := constr:( $( solve [ prove_query_isomorphism solver ] )$ : Meq pre post) in
+      | first [ let forget := constr:( $( solve [ prove_query_homomorphic_equivalent solver ] )$ : Meq pre post) in
                 fail 1
               | simpl; solve [ solver ] ] ]
   end.
@@ -430,6 +430,8 @@ Ltac chase solver :=
                  | simpl ; reflexivity ]
   | |- Meq ?x ?m => simpl ; reflexivity
   end.
+
+Definition Find {T} (n : T) : Prop := True.
 
 Section minimize_lemmas.
   Variable M : Type -> Type.
@@ -457,17 +459,15 @@ Section minimize_lemmas.
 
   Lemma minimize_drop
   : forall {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) f (qb'' : M T') qg'',
-      (Mimpl (Mmap f qb') qb /\
-       Meq (query (Mplus qb qb') qg qr)
-           (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y)))) ->
+      Meq (query (Mplus qb qb') qg qr)
+          (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y))) ->
       Meq (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y)))
           (query qb'' (fun y => qg'' (f y,y)) (fun y => qr (f y,y))) ->
       Meq (query (Mplus qb qb') qg qr)
           (query (Mmap (fun x => (f x, x)) qb'') qg'' qr).
   Proof.
     unfold query, Mplus. intros.
-    destruct H. clear H.
-    rewrite <- H1 in H0; clear H1.
+    rewrite <- H in H0; clear H.
     rewrite H0; clear H0.
     unfold Mmap. rw_M.
     reflexivity.
@@ -506,27 +506,91 @@ Section minimize_lemmas.
     intro.
     rewrite H. reflexivity.
   Qed.
+
+  Lemma minimize_drop_under
+  : forall M (DM : DataModel M) {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) (qb'' : M T') qg'' f P,
+      forall Hignore : Find f,
+      (P -> Meq (query (Mplus qb qb') qg qr)
+                (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y)))) ->
+      (P -> Meq (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y)))
+                (query qb'' (fun y => qg'' (f y,y)) (fun y => qr (f y,y)))) ->
+      (P -> Meq (query (Mplus qb qb') qg qr)
+                (query (Mmap (fun x => (f x, x)) qb'') qg'' qr)).
+  Proof.
+    unfold query, Mplus. intros.
+    setoid_rewrite <- H in H0; clear H. 2: assumption.
+    rewrite H0; clear H0.
+    unfold Mmap. rw_M.
+    reflexivity. assumption.
+  Qed.
+
+  Lemma minimize_keep_under
+  : forall (T T' V : Type) (qb : M T) (qb' : M T') (qg : T * T' -> bool)
+           (qr : T * T' -> V) (qb'' : M T') (qg'' : T * T' -> bool) P,
+      (forall x : T,
+          P -> Meq (query qb' (fun y : T' => qg (x, y)) (fun y : T' => qr (x, y)))
+                   (query qb'' (fun y : T' => qg'' (x, y)) (fun y : T' => qr (x, y)))) ->
+      (P -> Meq (query (Mplus qb qb') qg qr) (query (Mplus qb qb'') qg'' qr)).
+  Proof.
+    intros. eapply minimize_keep; eauto.
+  Qed.
+
+  Lemma chase_rhs : forall {T} (m1 m2 m3 : M T) P,
+      (P -> Meq m3 m2) ->
+      (P -> Meq m1 m3) ->
+      (P -> Meq m1 m2).
+  Proof. intros. etransitivity; eauto. Qed.
+
+  Lemma find_id : forall T, @Find (T -> T) (fun x => x).
+  Proof. constructor. Defined.
+  Lemma find_left : forall T U V f,
+      @Find (T -> V) f ->
+      @Find (T * U -> V) (fun x => f (fst x)).
+  Proof. constructor. Defined.
+  Lemma find_right : forall T U V f,
+      @Find (U -> V) f ->
+      @Find (T * U -> V) (fun x => f (snd x)).
+  Proof. constructor. Defined.
+
+
 End minimize_lemmas.
 
 Ltac drop_dup solver :=
   let rec search :=
-        (simple eapply pick_here)
-      + (simple eapply pick_left ; simple eapply pick_here)
-      + (simple eapply pick_right ; search)
+    lazymatch goal with
+    | |- @Find (?T -> ?T) _ => eapply find_id
+    | |- _ =>
+      (eapply find_left + eapply find_right) ; search
+    end
   in
-  match goal with
+  lazymatch goal with
   | |- Meq ?x ?m =>
     first [ is_evar x ; symmetry
           | is_evar m ] ;
     repeat first [ simple eapply minimize_const
-                 | eapply minimize_drop ;
-                   [ solve [ split ; [ search | prove_query_isomorphism solver ] ]
-                   | ]
-                 | simple eapply minimize_keep
-                 | simple eapply minimize_last ;
-                   [ simpl; intros ;
-                     repeat (rewrite rel_dec_eq_true by eauto with typeclass_instances) ]
-                 ]
+                 | once (eapply minimize_drop ;
+                         [ search
+                         | solve [ prove_query_homomorphic_equivalent solver ]
+                         | ])
+                 | simple eapply minimize_keep ; intro
+                 ] ;
+    simple eapply minimize_last
+  | |- _ -> Meq ?x ?m =>
+    first [ is_evar x ; let h := fresh in intro h ; symmetry ; revert h
+          | is_evar m ] ;
+    (repeat first [ simple eapply minimize_const
+                  | once (refine (@minimize_drop_under _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) ;
+                          [ shelve
+                          | shelve
+                          | shelve
+                          | search
+                          | solve [ eapply chase_rhs ;
+                                    [ once solve [ chase solver ]
+                                    | intro ; prove_query_homomorphic_equivalent solver ] ]
+                          | ])
+                  | simple eapply minimize_keep_under ; intro
+                  ]) ;
+    intro ; simple eapply minimize_last
   end.
 
 Ltac solve_conclusion :=
@@ -556,12 +620,11 @@ Ltac minimize solver :=
       (repeat rewrite query_assoc_Mplus) ;
       drop_dup solver
   in
-  lazymatch goal with
-  | |- Meq ?x ?m => idtac
-  | |- _ -> Meq ?x ?m => intro
-  end ;
-  eapply refine_transitive ;
-  [ kont ; solve [ solve_conclusion ]
+  eapply refine_transitive_under ;
+  [ (once kont) ;
+    simpl; intros ;
+    repeat (rewrite rel_dec_eq_true by eauto with typeclass_instances) ;
+    solve [ solve_conclusion ]
   | simpl ; reflexivity ].
 
 Ltac simplifier :=
@@ -570,6 +633,27 @@ Ltac simplifier :=
     intro
   | |- Meq _ _ => idtac
   end ; rw_M ; simpl ; reflexivity.
+
+(** TODO: This is incomplete **)
+Ltac continue tac :=
+  (first [ refine (@refine_transitive _ _ _ _ _ _ _ _)
+         | refine (@refine_transitive_under _ _ _ _ _ _ _ _ _) ];
+   [ shelve | | ]); [ once  tac.. | ].
+
+Ltac optimize solver :=
+  prep ;
+  lazymatch goal with
+  | |- Meq _ _ =>
+    continue normalize ;
+    continue ltac:(idtac; minimize solver) ;
+    simplifier
+  | |- _ -> Meq _ _ =>
+    continue normalize ;
+    continue ltac:(idtac; chase solver) ;
+    continue ltac:(idtac; minimize solver) ;
+    simplifier
+  end.
+
 
 Ltac execute0 tac :=
   prep ; tac.
