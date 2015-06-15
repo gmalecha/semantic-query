@@ -420,13 +420,14 @@ Ltac ed_search :=
 
 Ltac chase solver :=
   lazymatch goal with
-  | |- _ -> Meq ?x ?m =>
+  | |- ?Z -> Meq ?x ?m =>
+    try (has_evar Z ; fail 10000 "premises contains evar") ;
     first [ is_evar x
           | is_evar m ; let y := fresh in intro y ; symmetry ; revert y ] ;
     repeat first [ refine (@refine_transitive_under_flip _ _ _ _ _ _ _ _ _) ;
                    [ shelve
                    | once solve [ ed_search ; chase_ed solver m ]
-                   | idtac "chased" ]
+                   | ]
                  | simpl ; reflexivity ]
   | |- Meq ?x ?m => simpl ; reflexivity
   end.
@@ -459,6 +460,7 @@ Section minimize_lemmas.
 
   Lemma minimize_drop
   : forall {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) f (qb'' : M T') qg'',
+      forall Hignore : Find f,
       Meq (query (Mplus qb qb') qg qr)
           (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y))) ->
       Meq (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y)))
@@ -620,11 +622,14 @@ Ltac minimize solver :=
       (repeat rewrite query_assoc_Mplus) ;
       drop_dup solver
   in
-  eapply refine_transitive_under ;
+  lazymatch goal with
+  | |- _ -> Meq _ _ => eapply refine_transitive_under
+  | |- Meq _ _ => eapply refine_transitive
+  end ;
   [ (once kont) ;
-    simpl; intros ;
-    repeat (rewrite rel_dec_eq_true by eauto with typeclass_instances) ;
-    solve [ solve_conclusion ]
+    once (simpl; intros ;
+          repeat (rewrite rel_dec_eq_true by eauto with typeclass_instances) ;
+          solve [ solve_conclusion ])
   | simpl ; reflexivity ].
 
 Ltac simplifier :=

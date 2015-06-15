@@ -22,11 +22,11 @@ Section Movies.
   ; actor : string }.
 
   Section over_db.
-    Variable db : M movie.
+    Variable Movies : M movie.
 
     Definition title_implies_director : Prop :=
       embedded_dependency
-        (Mplus db db)
+        (Mplus Movies Movies)
         (fun xy => (fst xy).(title) ?[ eq ] (snd xy).(title))
         (Mret tt)
         (fun xy _ => (fst xy).(director) ?[ eq ] (snd xy).(director)).
@@ -35,8 +35,8 @@ Section Movies.
     (*************************)
 
     Example ex1 : M (string * string)
-    := Mbind db (fun x =>
-       Mbind db (fun y =>
+    := Mbind Movies (fun x =>
+       Mbind Movies (fun y =>
        Mguard (x.(title) ?[ eq ] y.(title)) (Mret (x.(director),y.(actor))))).
 
     Example normalized_ex1' : { x : M (string * string) | Meq x ex1 }.
@@ -46,10 +46,15 @@ Section Movies.
     Example normalized_ex1 :=
       Eval cbv beta iota zeta delta [ proj1_sig normalized_ex1' ]
       in (proj1_sig normalized_ex1').
-    Print normalized_ex1.
+    (* Print normalized_ex1. *)
 
     (** Chasing **)
     (*************)
+
+    Lemma pair_inj : forall {T U} (a b : T) (c d : U),
+        a = b -> c = d ->
+        (a,c) = (b,d).
+    Proof. congruence. Qed.
 
     Ltac solver :=
       intros;
@@ -58,17 +63,12 @@ Section Movies.
                apply Bool.andb_true_iff in H ; destruct H
              | |- andb _ _ = true =>
                apply Bool.andb_true_iff ; split
-             end ;
-      eauto using rel_dec_eq_true with typeclass_instances.
-
-    Ltac solver' :=
-      intros;
-      repeat match goal with
-             | H : andb ?X ?Y = true |- _ =>
-               apply Bool.andb_true_iff in H ; destruct H
-             | |- andb _ _ = true =>
-               apply Bool.andb_true_iff ; split
              | H : _ ?[ _ ] _ = true |- _ => eapply rel_dec_true_eq in H; eauto with typeclass_instances
+             | |- andb _ _ = true =>
+               eapply Bool.andb_true_iff ; split
+             | |- _ ?[ _ ] _ = true =>
+               eapply rel_dec_eq_true
+             | |- (_,_) = (_,_) => eapply pair_inj
              end ;
       repeat first [ solve [ eauto using rel_dec_eq_true with typeclass_instances ]
                    | f_equal ].
@@ -80,22 +80,22 @@ Section Movies.
     Defined.
 
     Definition universal_ex1 :=
-      Eval cbv beta zeta delta [ universal_ex1' proj1_sig conditional_transitive conditional_simpl ]
+      Eval cbv beta iota zeta delta [ universal_ex1' proj1_sig conditional_transitive conditional_simpl ]
       in (proj1_sig universal_ex1').
 
-    Eval unfold universal_ex1 in universal_ex1.
+    (* Eval unfold universal_ex1 in universal_ex1. *)
 
     (** Minimization **)
     (******************)
 
     Example minimized_ex1' : { x : _ | Meq x universal_ex1 }.
-    Time execute1 minimize solver'.
+    Time execute1 minimize solver.
     Defined.
 
     Definition minimized_ex1 :=
       Eval cbv beta iota zeta delta [ Mmap minimized_ex1' proj1_sig unconditional_transitive unconditional_simpl query ]
       in (proj1_sig minimized_ex1').
-    Print minimized_ex1.
+    (* Print minimized_ex1. *)
 
     (** Finishing **)
     (***************)
@@ -108,11 +108,13 @@ Section Movies.
       in (proj1_sig finished_ex1).
 
     Definition optimized : { m : _ | EdsSound (title_implies_director :: nil) -> Meq m ex1 }.
-    Time optimize solver'.
+    Time optimize solver.
     Defined.
 
+(*
     Eval cbv beta iota zeta delta [ Mmap finished_ex1 proj1_sig optimized ]
       in (proj1_sig optimized).
+*)
 
     Definition tbl_movies : M movie := makeM
       (Movie "Star Trek: Into Darkness" "JJ Abrams" "Benedict Cumberbatch" ::

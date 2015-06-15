@@ -1,4 +1,4 @@
-coqsem.pdf: coqsem.tex
+coqsem.pdf: coqsem.tex lstcoq.sty thesisbib.bib
 	pdflatex --halt-on-error coqsem
 	bibtex coqsem
 	pdflatex --halt-on-error coqsem
