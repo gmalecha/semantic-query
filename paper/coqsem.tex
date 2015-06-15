@@ -9,6 +9,7 @@
 \usepackage{lstcoq}
 \usepackage{comment}
 
+
 \lstset{ %
   numberbychapter=false, %
   language=coq, %
@@ -1221,7 +1222,31 @@ Proof. ... Qed.
 
 Performance evaluation (how long does it take to optimize)
 
+\begin{figure}
+\centering
+\begin{tabular}{l | r | r}
+               & \multicolumn{2}{| c}{Time (s)} \\
+\textbf{Phase} & \textbf{Movie} & \textbf{Index} \\\hline
+Normalize      & 0.72  & \\
+Chase          & 0.54  & \\
+Minimize       & 1.594 & \\\hline
+\textbf{Total} & 2.85  & \\
+\end{tabular}
+
+\greg{I need to do several trials of these numbers and take an average}
+
+\caption{Performance of the optimizer.}
+\label{fig:performance}
+\end{figure}
+
 \subsection{Reflective Implementation}
+In addition to the \ltac{} optimization procedure, we also developed an implementation of the chase within Coq's logic, Gallina.
+Gallina is much more like a standard programming language with the ability to build custom data structures, and compute on data rather than just manipulat syntax.
+\greg{compare the size of the code.}
+
+\greg{Compare the performance}
+
+\greg{Compare the extensibility}
 
 \subsection{Related \& Future Work}
 Fiat~\cite{deleware2015fiat}
