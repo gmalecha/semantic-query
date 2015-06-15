@@ -595,14 +595,8 @@ Definition q_LOR : set (string * string) :=
 \end{coq}
 As is well-known~\cite{monad}, monadic computations such as relational conjunctive queries can always be normalized into the flat form used in the first half of this paper, and our Coq library does this normalization (in a fully verified way) during optimization.
 
-\subsection{Representing Queries in Coq}
-Our Coq library is parametric in an underlying type of sets.  Mathematically, semantic optimization is sound for arbitrary commutative, idempotent monads 
+\subsection{Queries and Constraints in Coq}
 
-Before diving into the details, we begin with an overview of the core Coq definitions.
-In a type theory such as Coq's there are numerous ways to define relations~\cite{}.
-We can go purely logical and treat relations as predicates over tuples of values, or we can go computational and choose finite sets which themselves could be implemented in a multitude of ways.
-We choose to make this polymorphism explicit in our development by abstractly describing the set implementations that are ``chaseable.''
-We express the operations and their associated reasoning principles in the record shown in Figure~\ref{fig:chaseable-functor}.
 \begin{figure}[t]
 \label{fig:chaseable-functor}
 \begin{coq}
@@ -659,27 +653,28 @@ Class DataModel (M : Type -> Type) : Type :=
 %%                (fun ab => C (fst ab) && Gb (h (fst ab)) (snd ab))
 %%                (fun ab => E (fst ab))).
 
-\caption{Abstractly representing the functors \coqe{M} that correspond to ``chaseable'' queries.}
+\caption{Collections Monads in Coq}
 \label{fig:chaseable-functor}
 \end{figure}
 
+Our Coq library is parametric in an underlying type of sets, and hence we need an interface to interact with various set implementations.  Our interface is based monads~\cite{monad}, which are a useful interface for many kinds of collections, including sets~\cite{monad}.  The operations, but not all required axioms, of our monadic interface are shown in Figure~\ref{fig:chaseable-functor}.  Intuitively, in a set monad these operations are:
+\begin{itemize}
+\item \coqe{Mret v} is the function that injects \coqe{v} into the singleton set containing only \coqe{v}.
+\item \coqe{Mbind m k} is the function that unions all sets \coqe{k x} for every \coqe{x} in the set \coqe{m}.  We will write \coqe{x <- m ; k} for \coqe{Mbind x (fun x => k)} where \coqe{x} occurs free in \coqe{k}.
+\item \coqe{Mzero} is the empty set.
+\item \coqe{Mplus} is the cartesian product of two sets.
+\item \coqe{Mguard P m} is defined as \coqe{Mzero}, if \coqe{P} is false and otherwise \coqe{m}.
+\end{itemize}
 
-The interface is based on Haskell's interface for monads and functors.
-\coqe{Mret v} is the function that corresponds to the singleton relation containing only the value \coqe{v}.
-\coqe{Mbind m k} is the function that corresponds to the union of all relations \coqe{k x} for any \coqe{x} in the \coqe{m} relation.
-Following Haskell convention, we will write \coqe{x <- m ; k} for \coqe{Mbind x (fun x => k)} where \coqe{x} occurs free in \coqe{k}.
-Next is \coqe{Mzero} which corresponds to the empty relation.
-\coqe{Mplus} is the cross-product of the two instances.
-\coqe{Mguard P m} is the same as \coqe{Mzero} if \coqe{P} is false and otherwise returns \coqe{m}.
-
-On top of these definitions we can layer some convience definitions that expose the extra structure present in queries and embedded dependencies.
+We use the monad operations to define queries as follows:
 \begin{coq}
 Definition query {S T: Type}
   (P : M S) (C : S -> bool) (E : S -> T) : M T :=
   Mbind P (fun x => Mguard (C x) (Mret (E x))).
 \end{coq}
-Here, \coqe{P} represents the {\tt for}-clause, \coqe{C} represents the {\tt where}-clause, and \coqe{E} represents the {\tt return}-clause.
-Embedded dependencies can be defind similarly.
+Here, \coqe{P} represents the {\tt for}-clause, \coqe{C} represents the {\tt where}-clause, and \coqe{E} represents the {\tt return}-clause.  As remarked earlier, our Coq library normalizes arbitrary combinations of the monad operations into the above form.
+
+Embedded dependencies are defined in terms of queries by using the $front = back$ definition from the first half of the paper: 
 \begin{coq}
 Definition embedded_dependency {S S': Type}
   (F : M S) (Gf : S -> bool) (B : M S') (Gb : S -> S' -> bool) :=
@@ -689,76 +684,65 @@ Definition embedded_dependency {S S': Type}
              (fun x => fst x)).
 \end{coq}
 
-We use the techniques described in later sections to normalize raw Coq code into this particular form.
+
+
+%We use the techniques described in later sections to normalize raw Coq code into this particular form.
 
 \subsection{Background: Tactic-based Programming}
 \label{sec:tactic-based}
 
-The core of the Coq Proof Assistant is Gallina, a pure functional programming language, which by the Curry-Howard correspondence~\cite{} is also a logic.
-However, Coq also features a partial, untyped ``tactic'' language called \ltac{} which can be used to construct terms in a semi-imperative style.
-\ltac{} is a meta-language in Coq, in much the same way that macros are a meta-language in C++.
-\ltac{} is evaluated externally to the kernel and therefore produces terms that are then passed to the kernel.
-This allows us to use \ltac{} to optimize terms before the kernel executes them.
+The core of the Coq Proof Assistant is a pure and dependently-typed functional programming language, which by the Curry-Howard correspondence~\cite{} is also a logic.  In addition, Coq also features a partial, untyped ``tactic'' language called \ltac{} which can be used to construct Coq terms in a semi-imperative style.  \ltac{} is a meta-language for Coq, in much the same way that macros are a meta-language in C++.  The Coq terms that \ltac{} produces are checked by the Coq kernel in the same way that all Coq terms are checked by the kernel.  
 
-The standard use of \ltac{} is to prove theorems via ``proof scripts'' that express the way the proof should proceed.
-These individual steps, called ``tactics,'' then generate an underlying proof term in Gallina that is later checked by the kernel.
-This work flow is built into the semantic of \ltac{} because \ltac{} tactics run on particular proof obligations or goals (e.g. \coqe{x + y = y + x}).
-In the general use of \ltac{} these goals are fully determined and it is simply the tactic's job to find a suitable proof.
-
-In this work we will be using \ltac{} in a slightly different way.
-Instead of being given a fully specified goal, we will be given a partially specified goal that specifies a constraint on a unification variable that the tactic will seek to fill in while solving the proof.
-Just to get our feet wet, consider the following goal.
+In this paper, we propose to use \ltac{} to optimize queries.  This use of \ltac{} is somewhat unorthodox; the standard use of \ltac{} is to prove theorems via ``proof scripts'' that express how proofs should be built.  Indeed, the operational semantics of \ltac{} are tailored to fit this standard use of \ltac{}, rather than to fit our use of \ltac{} as a query optimizer.  For example, every \ltac{} tactic runs against a particular ``proof obligation'' (a.k.a goal), such as \coqe{x + y = y + x}.  In general, these goals are fully determined and it is simply the tactic's job to find a suitable proof.  In our case, instead of being given a fully specified goal, we will be given a partially specified goal that specifies a constraint on a ``unification variable'' that the tactic will seek to fill in while solving the proof.  It is the discovered values of these unification variables that will be our optimized queries.  We will demonstrate our particular way of using \ltac on a simple goal, where we want to find an optimized query for \coqe{?n}:
 \begin{coq}
 Meq ?n (x <- Movie ; y <- Movie ; ret x)
 \end{coq}
 Here, \coqe{?n} is the unification variable that we are trying to fill in and the constraint is that it must be equivalent to the query \coqe{x <- Movie ; y <- Movie ; ret x}.
-We could simply pick \coqe{?n} to be the full query \coqe{x <- Movie ; y <- Movie ; ret x}, but that would require us to do an unnecessary join.
-
-Instead we will optimize the query by appealing to verified manipulations of the terms.
-For example, the following is a provable transformation.
+We could simply pick \coqe{?n} by reflexivity to be the full query \coqe{x <- Movie ; y <- Movie ; ret x}, but that would require us to do an unnecessary join.  Instead, we will optimize the query (\coqe{?n}) by appealing to various query transformations that are provably correct.   For example, the following is a lemma that expresses that queries (in the set monad) are idempotent:
 \begin{coq}
 Lemma Mbind_dedup : forall {T U} (m : M T) (k : T -> M U),
   Meq (Mbind m k) (Mbind m (fun x => Mbind m (fun _ => k x))).
 Proof. ... Qed.
 \end{coq}
-First, because \coqe{Meq} is an equivalence relation, we can use \ltac's \coqe{setoid_rewrite} to rewrite using the relation.
-Running \coqe{setoid_rewrite <- Mbind_dedup} on the goal above results in the following:
+Because \coqe{Meq} is an equivalence relation, we can use \ltac's \coqe{setoid} \coqe{rewrite} to rewrite using \coqe{Mbind_dedup}.
+Running \coqe{setoid_rewrite <- Mbind_dedup} on the goal above results in the new goal:
 \begin{coq}
 Meq ?n (x <- Movie ; ret x)
 \end{coq}
 Note that this does \emph{not} solve the unification variable \coqe{?n}; only the right-hand-side of the \coqe{Meq} is changed.
-Further, with the appropriate definitions, rewriting can happen deep within larger terms and can therefore be useful for operations such as re-associating binds or distributing operations.
+However, now we can pick \coqe{?n} to be \coqe{x <- Movie ; ret x} by reflexivity, and \coqe{?n} now does not require a join -- it has been optimized.  
 
-The ability for rewriting to apply deep within terms can also make it somewhat unpredicatable.
-It is up to Coq's unification heuristics to determine which term is rewritten if there are two possibilities.
-When we need to do more fine-tuned term manipulation we often prefer to use the more primitive \coqe{apply} tactic.
-Applying \coqe{Mbind_dedup} directly to this goal solves it with the same unification as above but this time instantiates \coqe{?n} with \coqe{x <- Movie ; ret x}.
+There are often many equivalent ways to use \ltac{} to solve a particular goal.  In the example above, rather than first use \coqe{setoid_rewrite}, and then chose \coqe{?n} by reflexivity, we could also use Coq's \coqe{apply} tactic with \coqe{Mbind_dedup} to yield a proof in a single step.  We have found that when building our optimization procedure in \ltac{}, we typically use \coqe{apply} (or \coqe{apply}) as the core reasoning tool, and we structure query optimization by applying theorems that express subproblems as premises and use \ltac{} ``chaining'' to solve these subproblems.  Consider the following (slightly contrived) example:
 
-When building optimization procedures in \ltac{}, \coqe{apply} often ammounts to the core reasoning tool.
-We structure manipulation by applying theorems that express subproblems as premises and use \ltac{} ``chaining'' to solve these subproblems.
-Consider the following (slightly contrived) example.
+
+%Further, with the appropriate definitions, rewriting can happen deep within larger terms and can therefore be useful for operations such as re-associating binds or distributing operations.
+
+%The ability for rewriting to apply deep within terms can also make it somewhat unpredicatable.
+%It is up to Coq's unification heuristics to determine which term is rewritten if there are two possibilities.
+%When we need to do more fine-tuned term manipulation we often prefer to use the more primitive \coqe{apply} tactic.
+%Applying \coqe{Mbind_dedup} directly to this goal solves it with the same unification as above but this time instantiates \coqe{?n} with \coqe{x <- Movie ; ret x}.
+
+
 \begin{coq}
 Meq ?n (Mplus a b)
 \end{coq}
-If we wish to optimize \coqe{a} and \coqe{b} independently  then we can apply the following lemma.
+If we wish to optimize \coqe{a} and \coqe{b} independently then we can \coqe{apply} the following lemma.
 \begin{coq}
 Lemma opt_plus : forall {T U} (m1 m1' : M T) (m2 m2' : M U),
   Meq m1' m1 ->
   Meq m2' m2 ->
   Meq (Mplus m1' m2') (Mplus m1 m2).
 \end{coq}
-When we apply this lemma to the above goal, we expect \coqe{m1} and \coqe{m2} to be completely determined but we expect \coqe{m1'} and \coqe{m2'} to be new unification variables.
-Because the tactic will introduce new unification variables, we use the \coqe{eapply} tactic.
-Running \coqe{eapply opt_plus} on the above goal yields the following sub-goals
+When we \coqe{apply} this lemma to the above goal, we expect \coqe{m1} and \coqe{m2} to be completely determined but we expect \coqe{m1'} and \coqe{m2'} to be new unification variables.
+%Because the tactic will introduce new unification variables, we use the \coqe{eapply} variant of the \coqe{apply} tactic.
+Running \coqe{apply opt_plus} on the above goal yields the following sub-goals
 \begin{center}
 \begin{tabular}{ccc}
 \lstinline!Meq ?m1' m1! & \qquad & \lstinline!Meq ?m2' m2! \\
 \end{tabular}
 \end{center}
 while at the same time instantiating \coqe{?n} with \coqe{Mplus ?m1' ?m2'}.
-As our tactics continue to fill in \coqe{?m1'} and \coqe{?m2'}, \coqe{?n} will be automatically updated to reflect these changes.
-
-
+As our tactics continue to fill in \coqe{?m1'} and \coqe{?m2'} (for example, during further optimization), \coqe{?n} will be automatically updated to reflect these changes.  
 
 
 %% The ``standard'' approach to developing an algorithm such as the chase in Coq would be to program it in Gallina, Coq's pure functional programming language.
@@ -924,35 +908,36 @@ query (Mplus Movies Movies)
 \end{comment}
 
 
-\subsection{The Chase}
+\subsection{The Chase as a Tactic}
 \label{sec:ltac-chase}
 
-With a normalized query in hand, we begin chasing it using embedded dependencies.
-We communicate the embedded dependencies to the tactic by expressing them within the goal.
-For example, we can optimize with the \coqe{title_director} embedded dependency using the following goal structure.
+Tableaux minimization makes heavy use of the chase, which we have implemented as a Coq tactic.  In a language-integrated query setting, implementing the chase as a tactic (as opposed to a Coq term) has two critical advantages.  First, the chase may never terminate, but all Coq programs do terminate, so any Coq (but not \ltac{}) implementation of the chase must be explicitly bounded by some number of chase steps.  Second, and more importantly, {\it Coq tactics can appeal to other Coq tactics.}  As we saw in the indexing example in the first half of the paper, running the chase can involve reasoning over predicates such as $<$ that appear in where clauses.  If we were implementing the chase as a Coq program (such as in cite), we would be forced to choose some predetermined set of predicates and implement, as part of the Coq program implementing the chase, a reasoning procedure for terms involving these predicates.  By implementing the chase as a tactic, we can appeal to Coq's \coqe{omega} tactic for reasoning about $<$, for example.  Moreover, the particular predicates and associated tactics need not be determined in advance; users are free to write arbitary Coq code in where clauses, and to construct hint databases for how to reason about the terms in where clauses.  
+
+Our chase tactic applies to goals that are contingent on EDs.  For example, we can optimize with the \coqe{title_director} ED using the following goal structure.
 \begin{coq}
 title_director ->
-Meq ?q (query (Mplus Movies Movies)
-              (fun x => (fst x).(title) ?[=] (snd x).(title))
-              (fun x => ((fst x).(director), (snd x).(actor))))
+Meq ?q 
+(m1 <- Movies ; m2 <- Movies ;
+  guard (title m1 = title m2) ;
+  return (director m1, actor m2))
 \end{coq}
 
-Chasing a query using an ED requires solving 4 problems.
-First, the tactic must find an embedded dependency to chase using.
-Next, the tactic finds a morphism from the binds of the query to the binds of the front of the ED (Section~\ref{sec:morphism-find}).
-Then, the tactic checks that the {\tt where}-clause implies the {\tt where}-clause of front of the ED under the mapping that our procedure found (Section~\ref{sec:side-condition}).
-Finally, before committing to the chase step, the tactic must ensure that doing so introduces new information (Section~\ref{sec:progress}).
+Chasing a query requires solving 4 problems in order:
+\begin{enumerate}
+\item the tactic must find an ED to chase with.
+\item the tactic must find a homomorphism from the front of the ED to the binders of the query (Section~\ref{sec:morphism-find}).
+\item the tactic must check that the {\tt where}-clause of the ED implies the {\tt where}-clause of the query under the mapping that our tactic found in the previous step (Section~\ref{sec:side-condition}).
+\item the tactic must ensure that chasing will introduce new information (Section~\ref{sec:progress}); i.e., the tactic must terminate when a fixed point is reached.
+\end{enumerate}
+
+We will now examine each of these steps in turn.
 
 \subsubsection{Finding an Embedded Dependency}
 \label{sec:traverse-ed}
 
-In the movie example, there is only one embedded dependency to chase with, but in more complex examples such as the indexing example there are multiple EDs.
-To find an appropriate ED, we can simply exhaustively consider all of the user-supplied EDs.
-Demonstrating this serves as a useful primer for the more complicated next step.
+In the movie example, there is only one embedded dependency to chase with, but in more complex examples such as the indexing example there are multiple EDs.  To find an appropriate ED, we can simply exhaustively consider all of the user-supplied EDs.  However, demonstrating this exhaustive enumeration serves as a useful primer for the more complicated next step of finding a homomorphism.  This step also demonstrates just how counter-intuitive it can be to program even a small part of a query optimizer using \ltac{}!
 
-When there are multiple candidate EDs, the search tactic must pick an expected representation.
-For our tactic, this is an implication with a conjunction as the premise.
-For example, if we EDs \coqe{A}, \coqe{B}, and \coqe{C} are all true, and we wish to optimize the query \coqe{q}, the goal posed to the tactic is the following:
+When there are multiple candidate EDs \coqe{A}, \coqe{B}, and \coqe{C}, and we wish to optimize the query \coqe{q}, the goal posed to the tactic is the following:
 \begin{coq}
 A /\ B /\ C -> Meq ?q q
 \end{coq}
@@ -1008,13 +993,11 @@ Theorem chase_sound {S S' T U}
                (fun ab : (S * U)%type => C (fst ab) && Gb (h (fst ab)) (snd ab))
                (fun ab => E (fst ab))).
 \end{coq}
-In this theorem, all of hte variables in the first three lines are solved immediately once we know the ED and the query that we are chasing.
-The next three lines (starting with the colon) express the tableau homomorphism from the query to the front of the ED.
-In the next two sections we explain how we compute this homomorphism.
+In this theorem, all of the variables in the first three lines are given explicitly once we know the ED and the query that we are chasing.  The next three lines (starting with the colon) express the tableau homomorphism from the front of the ED to the query.
+In the next two paragraphs we explain how we compute this homomorphism.
 
-\paragraph{Finding a Morphism}
-In the explanation of the chase step in Section~\ref{sec:chase} the morphism was from the variables bound in the {\tt for}-clause to the variables bound in the front of the embedded dependency.
-In our movie query example this corresponds to a mapping that assigns values in $\{x,y\}$ to values in $\{m_1,m_2\}$.
+\paragraph{Finding a Homomorphism}
+In the definition of a chase step in Section~\ref{sec:chase} a homomorphism is a map from variables bound in the front of the embedded dependency to the variables bound in the {\tt for}-clause of the query.  In our movie query example this corresponds to a mapping that assigns values in $\{x,y\}$ to values in $\{m_1,m_2\}$.
 
 Since our queries are simply Coq terms, referencing these binders explicitly can be quite difficult, and is not very extensible.
 Rather, we will encode our mapping of binders as a function between the types being bound.
@@ -1026,20 +1009,18 @@ h x = (fst x, snd x)
 h x = (snd x, fst x)
 h x = (snd x, snd x)
 \end{coq}
-Where \coqe{fst} extracts the first element of the pair and \coqe{snd} extracts the second.
+%Where \coqe{fst} extracts the first element of the pair and \coqe{snd} extracts the second.
 
-As before, we are going to construct these functions incrementally using theorems that represent individual steps of reasoning.
+As is customary for our specialized use of \ltac, we are going to construct these functions incrementally using theorems that represent individual steps of reasoning.
 The search is much the same as the search for isolating a particular ED.
 There are two main differences.
 The first is that we must now find a binder for each binder in the front of the ED.
-The second is that in doing so, we must construct the morphism \coqe{h} so that we can use it when we check the side-condition.
-
+The second is that in doing so, we must explicitly construct a substitution \coqe{h} to use to check that \coqe{h} is actually a homomorphism.
 When searching for the homomorphism, the goal will have the following form, where \coqe{P} is the {\tt for}-clause of the query and \coqe{F} is the {\tt forall}-clause in the ED.
 \begin{coq}
 Mimpl (Mmap ?h P) F
 \end{coq}
-
-The first task is to break \coqe{F} down into atomic units which, essentially, correspond to the binders.
+In the above \coqe{Mimpl}, is defined as subset containment (or rather, the analog of subset containment for arbitrary monads), and \coqe{Mmap} expresses the application of a substitution.  The first task is to break \coqe{F} down into atomic units which, essentially, correspond to the binders.
 The \coqe{pick_split} lemma applies when \coqe{F} is formed from a \coqe{Mplus}.
 \begin{coq}
 Lemma pick_split
@@ -1053,7 +1034,7 @@ This lemma states that we can find a morphism from \coqe{m} to \coqe{Mplus u u'}
 Note that in addition to breaking down the morphism by decomposing it into \coqe{f} and \coqe{g}, the left-hand-side of the implication also shows how to construct the final homomorphism given \coqe{f} and \coqe{g}.
 
 Reapeatedly applying \coqe{pick_split} will eventually break the {\tt forall}-clause down into atomic elements that we can match up with the query.
-This matching is essentially the same as the ED search procedure except that, as above, we must record the way to re-constuct the \coqe{h} function.
+This matching is essentially the same as the ED search procedure except that, as above, we must record the way to reconstuct the \coqe{h} function.
 \begin{coq}
 Lemma pick_left {T' U' V} (f' : _ -> V) (x : M V) (y : M T') (k' : M U')
 : Mimpl (Mmap f' k') x ->
@@ -1095,20 +1076,20 @@ Finally, \coqe{pick_here} applies when the value being searched for is exactly t
 %% The plus operator effectively allows choices to be made independently and allows backtracking to encode the non-deterministic choice.
 %% In this case, along the first goal we \coqe{pick_left} and then \coqe{pick_here} and along the second we \coqe{pick_right} and then \coqe{pick_here}.
 
-The search completes with each of the four candidate morphisms written above, the next step is to attempt to solve the side condition.
+The search completes with each of the four candidate substitutions written above, the next step is to attempt to solve the side condition (i.e., that a candidate is in fact a homomorphism).
 
 \paragraph{Solving the Side-conditions}
-With a candidate morphism in hand, the next step is to discharge the side condition which guarantees that the {\tt where}-clause of the query implies the {\tt where}-clause of the embedded dependency.
-In our problem, this amounts to the following:
+With a candidate substitution in hand, the next step is to discharge the side condition which guarantees that the {\tt where}-clause of the embedded dependency implies the {\tt where}-clause of the query.  In our movies example, this amounts to the following (we will write, for example, \coqe{z.title} instead of \coqe{title z} in an effort to make things more readable):
 \begin{coq}
-forall x : Movie $\times$ Movie, (fst x).(title) ?[=] (snd x).(title) = true
-     -> (fst (h x)).(title) ?[=] (snd (h x)).(title)
+forall x : Movie $\times$ Movie, (fst x).title = (snd x).title = true
+     -> (fst (h x)).title = (snd (h x)).title
 \end{coq}
+
 However, once we get to this step, \coqe{h} is exactly one of the morphisms constructed by the previous step.
 When we plug in the correct morphism, i.e. \coqe{h x = (fst x, snd x)} (recall that we are enumerating all of the potential morphisms) we get the following:
 \begin{coq}
-forall x : Movie $\times$ Movie, (fst x).(title) ?[=] (snd x).(title) = true
-     -> (fst x).(title) ?[=] (snd x).(title) = true
+forall x : Movie $\times$ Movie, (fst x).title = (snd x).title = true
+     -> (fst x).title = (snd x).title = true
 \end{coq}
 
 While this goal is trivially true, in general these side conditions can require potentially arbitrary reasoning.
@@ -1138,9 +1119,9 @@ Ltac prove_query_morphism solver :=
 Ltac prove_query_isomorphism solver :=
   split; prove_query_morphism solver.
 \end{coq}
-Note again that these tactics are parameterized by the underlying solver that that will use to discharge the side-conditions.
+Note again that these tactics are parameterized by the underlying solver (\coqe{solver}) that that will use to discharge the side-conditions.
 
-\subsubsection{Computing the Fixpoint}
+\subsubsection{Computing the Fixedpoint}
 With the ability iterate over the EDs (Section~\ref{sec:traverse-eds}) and compute a chase step (Section~\ref{sec:chase-step}), it is simple to implement the entire chase.
 The key detail to be aware of when constructing the full chase lies in delimiting the backtracking that the algorithm requires.
 When we fail to chase with a particular ED, it is no longer necessary to backtrack into that search until we have added new information.
@@ -1158,13 +1139,13 @@ The first of the two goals is solved using the tactic on the second line.
 Here, \coqe{solve} requires that the inner tactic completely solves the goal, and \coqe{once} prevents backtracking triggered by later pieces of the search.
 If progress can not be made in the chase, then the goal is solved by the second branch of the \coqe{first} tactical which picks the current query as the result.
 
-Note that by developing this procedure in \ltac{} there is no way to reason about whether it terminates.
+%Note that by developing this procedure in \ltac{} there is no way to reason about whether it terminates.
 
 \subsection{Minimization}
 \label{sec:minimization}
 
 The final step in optimization is to remove extraneous binds from the query.
-By now, the techniques are all old-hat.
+By now, the techniques have already been discussed.
 We will use incremental lemmas to iterate through the binders and attempt to drop each one by expressing a side-condition the expresses that the information in that binder can be reconstructed from the other bound values.
 The core relevant lemmas are the following:
 \begin{coq}
@@ -1194,25 +1175,25 @@ The second premise, ensures that this choice of \coqe{f} respects the equivalenc
 If we can not find a way to construct the information from the rest of the query, then we must keep this information, but we can still optimize the rest of the query (represented by quantifying over any value from the relation and ensuring that the rest of the query is still valid).
 
 %% \greg{Note, this is a bit incomplete because the current automation does not allow backwards minimization}
-
-\subsection{Extension}
-
-\greg{This is on the nested relational queries}
-
-The main benefit (which we will see throughout the pipeline) is the ability to easily extend the transformations simply by proving relatively simple lemmas such as the ones above.
-For example, the above \coqe{normal_pull_plus} is not sufficient to handle nested queries where \coqe{x} could depend on the values that were previously bound.
-Normally, supporting this type of term manipulation would be quite painful since we would need to track the number of binders that we are under or generate fresh names.
-Instead, we can foist all of that complexity back onto Coq by phrasing the appropriate lemma and using Coq's higher-order unification to solve the problem for us.
-Using this technique, the generalization of \coqe{normal_pull_plus} to handle nested relations would be the following:
-\begin{coq}
-Lemma normal_pull_dplus_ret_id
-: forall {T U V W : Type} (qb : M T) qg x (y : _ -> _ -> M V),
-  Meq (Mbind (query qb qg (fun x => x))
-             (fun val : T => Mbind (x val) (y val)))
-      (Mbind (query (Mdplus qb x) (fun x => qg (fst x)) (fun x => (fst x, snd x)))
-             (fun val : T * W => y (fst val) (snd val))).
-Proof. ... Qed.
-\end{coq}
+%
+%\subsection{Extension}
+%
+%\greg{This is on the nested relational queries}
+%
+%One of the main benefits to implementing our query optimizer in \ltac{} is the ability to easily extend the optimizer simply by proving relatively simple lemmas such as the ones in the previous section.
+%For example, the above \coqe{normal_pull_plus} is not sufficient to handle nested queries where \coqe{x} could depend on the values that were previously bound.
+%Normally, supporting this type of term manipulation would be quite painful since we would need to track the number of binders that we are under or generate fresh names.
+%Instead, we can foist all of that complexity back onto Coq by phrasing the appropriate lemma and using Coq's higher-order unification to solve the problem for us.
+%Using this technique, the generalization of \coqe{normal_pull_plus} to handle nested relations would be the following:
+%\begin{coq}
+%Lemma normal_pull_dplus_ret_id
+%: forall {T U V W : Type} (qb : M T) qg x (y : _ -> _ -> M V),
+%  Meq (Mbind (query qb qg (fun x => x))
+%             (fun val : T => Mbind (x val) (y val)))
+%      (Mbind (query (Mdplus qb x) (fun x => qg (fst x)) (fun x => (fst x, snd x)))
+%             (fun val : T * W => y (fst val) (snd val))).
+%Proof. ... Qed.
+%\end{coq}
 
 
 %% \subsection{Non-Semantic Optimization}
@@ -1239,26 +1220,27 @@ Minimize       & 1.594 & \\\hline
 \label{fig:performance}
 \end{figure}
 
-\subsection{Reflective Implementation}
-In addition to the \ltac{} optimization procedure, we also developed an implementation of the chase within Coq's logic, Gallina.
-Gallina is much more like a standard programming language with the ability to build custom data structures, and compute on data rather than just manipulat syntax.
+%\subsection{Reflective Implementation}
+%In addition to the \ltac{} optimization procedure, we also developed an implementation of the chase within Coq's logic, Gallina.
+%Gallina is much more like a standard programming language with the ability to build custom data structures, and compute on data rather than just manipulat syntax.
 \greg{compare the size of the code.}
 
 \greg{Compare the performance}
 
 \greg{Compare the extensibility}
 
-\subsection{Related \& Future Work}
-Fiat~\cite{deleware2015fiat}
+%\subsection{Related \& Future Work}
+%Fiat~\cite{deleware2015fiat}
 
-Chase in Coq~\cite{}
+%Chase in Coq~\cite{}
 
-MirrorCore~\cite{malecha2014thesis}
 
-computational reflection~\cite{}
+
+%computational reflection~\cite{}
 
 \section{Conclusions}
 
+Todo: need to hammer home why writing the chase as a tactic is hard, and why doing it that was is valuable.  This is a good place to compare to MirrorCore~\cite{malecha2014thesis}, rather than the related work.
 
 
 
