@@ -123,7 +123,7 @@ Section syntax.
   Fixpoint compile_e (vars : list (string * type)) T (q : expr_ast)
            (wt : WT_expr vars q T) {struct wt} : expr (List.map snd vars) T :=
     match wt in WT_expr _ q T return expr (List.map snd vars) T with
-    | WT_Var v T pf => match find v vars as X
+    | @WT_Var _ v T pf => match find v vars as X
                              return find v vars = X ->
                                     X = Some T ->
                                     expr (List.map snd vars) T
@@ -144,7 +144,7 @@ Section syntax.
                                      | eq_refl => Expr.Var (find_to_member vars v pf_v)
                                      end
                        end eq_refl pf
-    | WT_Proj e ts f _ pf_wt pf =>
+    | @WT_Proj _ e ts f _ pf_wt pf =>
       Expr.Proj (compile_e pf_wt) (to_member _ _ pf)
     end.
 
@@ -154,11 +154,11 @@ Section syntax.
            (fs : filter_type (List.map snd vars))
            (wt : WT_query vars q)  : tableaux scheme :=
     match wt with
-    | WT_Ret => {| types := List.map snd vars ; binds := bs ; filter := fs |}
-    | @WT_Bind x ti t_t q' pf_eq pf_wt =>
+    | @WT_Ret _ => {| types := List.map snd vars ; binds := bs ; filter := fs |}
+    | @WT_Bind _ x ti t_t q' pf_eq pf_wt =>
       @compile_q' ((x,t_t) :: vars) q' (Hcons (to_member _ _ pf_eq) bs)
                   (@filter_weaken _ _ fs) pf_wt
-    | @WT_Guard l r q' T wt_l wt_r wt_q =>
+    | @WT_Guard _ l r q' T wt_l wt_r wt_q =>
       @compile_q' vars q' bs
                   (Expr.Eq (compile_e wt_l) (compile_e wt_r) :: fs)
                   wt_q
