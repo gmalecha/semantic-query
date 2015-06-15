@@ -1195,6 +1195,9 @@ If we can not find a way to construct the information from the rest of the query
 %% \greg{Note, this is a bit incomplete because the current automation does not allow backwards minimization}
 
 \subsection{Extension}
+
+\greg{This is on the nested relational queries}
+
 The main benefit (which we will see throughout the pipeline) is the ability to easily extend the transformations simply by proving relatively simple lemmas such as the ones above.
 For example, the above \coqe{normal_pull_plus} is not sufficient to handle nested queries where \coqe{x} could depend on the values that were previously bound.
 Normally, supporting this type of term manipulation would be quite painful since we would need to track the number of binders that we are under or generate fresh names.
@@ -1211,8 +1214,8 @@ Proof. ... Qed.
 \end{coq}
 
 
-\subsection{Non-Semantic Optimization}
-\greg{not finished but could be interesting and relatively simple}
+%% \subsection{Non-Semantic Optimization}
+%% \greg{not finished but could be interesting and relatively simple}
 
 \section{Discussion}
 
