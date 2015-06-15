@@ -1232,7 +1232,7 @@ While simple types would help track some information, thoughout the course of de
 For example, whether the unfication is on the left or the right of the \coqe{Meq} influences the way that you write lemmas.
 Similarly, many lemmas had to be duplicated to handle extra bits of context.
 For example, we had to write separate lemmas for chaining together refinements in the presence and absence of embedded dependencies.
-Several authors have proposed more richly typed tactic-based programming languages, noteably Mtac~\cite{} and VeriML~\cite{}.
+Several authors have proposed more richly typed tactic-based programming languages, noteably Mtac~\cite{ziliani2013mtac} and VeriML~\cite{stampoulis2010veriml}.
 While neither of these are as mature or rich as \ltac, it would be interesting to explore whether their features greatly the development process.
 
 Another problem inherent in tactic-based programming is speed.
@@ -1272,7 +1272,7 @@ The {\tt minimize} phase is the longest which is the result of needing to perfor
 
 \paragraph{A Verified Implementation}
 One of the benefits of working in a rich logic such as Coq is the ability to leverage dependent types to offset some of the burden of building proofs.
-For example, rather than writing tactics to compute the chase and then use Coq's logic to prove the procedure sound similar to the work of ???~\cite{}.
+For example, rather than writing tactics to compute the chase and then use Coq's logic to prove the procedure sound similar to the work of Benzaken~\cite{coqdb}.
 This can yield a substantial improvement in performance.
 For example, optimizing the Movie query from beginning to end is practically instantaneous using Coq's \coqe{vm_compute} reduction mechanism.
 

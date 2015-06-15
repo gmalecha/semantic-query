@@ -12,7 +12,7 @@ Michael Barr and Charles Wells, editors.
 
 \bibitem{coqdb}
 Véronique Benzaken, Évelyne Contejean, and Stefania Dumbrava.
-\newblock A coq formalization of the relational data model.
+\newblock {A Coq Formalization of the Relational Data Model}.
 \newblock In Zhong Shao, editor, {\em Programming Languages and Systems},
   volume 8410 of {\em Lecture Notes in Computer Science}, pages 189--208.
   Springer Berlin Heidelberg, 2014.
@@ -27,9 +27,7 @@ Yves Bertot and Pierre Cast\'eran.
 Benjamin Delaware, Cl{\'{e}}ment Pit{-}Claudel, Jason Gross, and Adam Chlipala.
 \newblock Fiat: Deductive synthesis of abstract data types in a proof
   assistant.
-\newblock In {\em Proceedings of the 42nd Annual {ACM} {SIGPLAN-SIGACT}
-  Symposium on Principles of Programming Languages, {POPL} 2015, Mumbai, India,
-  January 15-17, 2015}, pages 689--700, 2015.
+\newblock In {\em {POPL'15}}, pages 689--700, 2015.
 
 \bibitem{Deutsch:2006:QRC:1121995.1122010}
 Alin Deutsch, Lucian Popa, and Val Tannen.
@@ -86,9 +84,25 @@ Lucian Popa and Val Tannen.
   views.
 \newblock In {\em ICDT}, 1999.
 
+\bibitem{stampoulis2010veriml}
+Antonis Stampoulis and Zhong Shao.
+\newblock Veriml: Typed computation of logical terms inside a language with
+  effects.
+\newblock In {\em Proceedings of the 15th ACM SIGPLAN International Conference
+  on Functional Programming}, ICFP '10, pages 333--344, New York, NY, USA,
+  2010. ACM.
+
 \bibitem{tannen:1992:NEQ:645500.655920}
 Val Tannen, Peter Buneman, and Limsoon Wong.
 \newblock Naturally embedded query languages.
 \newblock ICDT '92, pages 140--154, London, UK, 1992. Springer-Verlag.
+
+\bibitem{ziliani2013mtac}
+Beta Ziliani, Derek Dreyer, Neelakantan~R. Krishnaswami, Aleksandar Nanevski,
+  and Viktor Vafeiadis.
+\newblock Mtac: A monad for typed tactic programming in coq.
+\newblock In {\em Proceedings of the 18th ACM SIGPLAN International Conference
+  on Functional Programming}, ICFP '13, pages 87--100, New York, NY, USA, 2013.
+  ACM.
 
 \end{thebibliography}
