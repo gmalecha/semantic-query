@@ -942,7 +942,7 @@ Next, the tactic finds a morphism from the binds of the query to the binds of th
 Then, the tactic checks that the {\tt where}-clause implies the {\tt where}-clause of front of the ED under the mapping that our procedure found (Section~\ref{sec:side-condition}).
 Finally, before committing to the chase step, the tactic must ensure that doing so introduces new information (Section~\ref{sec:progress}).
 
-\subsubsection{Traversing EDs}
+\subsubsection{Finding an Embedded Dependency}
 \label{sec:traverse-ed}
 
 In the movie example, there is only one embedded dependency to chase with, but in more complex examples such as the indexing example there are multiple EDs.
@@ -967,18 +967,51 @@ Lemma ed_pick_right : forall {A B C : Prop},
   A /\ B -> C.
 Proof. ... Qed.
 \end{coq}
-
+\coqe{ed_pick_left} focuses on the left-hand-side of a conjunction while \coqe{ed_pick_right} focuses on the right-hand-side.
+When only a single ED remains, we can start the actual chase procedure.
+We express the backtracking search using \ltac's \coqe{+} combinator.
+The following tactic performs the search.
+\begin{coq}
+Ltac ed_search :=
+  lazymatch goal with
+  |- _ /\ _ -> _ =>
+    (  simple apply ed_pick_left
+     + simple eapply ed_pick_right) ; ed_search
+  |- _ -> _ => idtac
+  end.
+\end{coq}
+Here, the \coqe{lazymatch goal with} is performing syntactic matching of the goal against the candidate patterns selecting the first that matches.
+The first branch chooses either the left- or right-side using the above tactics and then continues the search.
+The second branch is the default case which finishes the search when the premise does not contain a conjunction.
 
 %% The previous sections havee shown how to chase a single embedded dependency, chasing a collection of EDs is not much more difficult.
 %% Embedded dependencies are communicated via premises on the entailment, so all that remains is to non-deterministically select the appropriate ED.
 %% The approach here is the same as when we non-deterministically found the morphism; we simply perform an exhaustive backtracking search trying to chase each one until we succeed.
 %% For convenience we require that multiple EDs are combined with $\wedge$.
 
+\subsubsection{Running the Chase Step}
+\label{sec:chase-step}
 
+Once we have isolated a single ED to attempt to chase, we need to apply a prepping lemma to get the goal into the appropriate form.
+For the chase step, this prepping step involves applying the following theorem which expresses the soundness of the chase.
+\begin{coq}
+Theorem chase_sound {S S' T U}
+  (P : M S) (C : S -> bool) (E : S -> T)
+  (F : M S') (Gf : S' -> bool) (B : M U) (Gb : S' -> U -> bool)
+: forall (h : S -> S'),
+    Mimpl (Mmap h P) F ->
+    (forall x, C x = true -> Gf (h x) = true) ->
+    embedded_dependency F Gf B Gb ->
+    Meq (query P C E)
+        (query (Mplus P B)
+               (fun ab : (S * U)%type => C (fst ab) && Gb (h (fst ab)) (snd ab))
+               (fun ab => E (fst ab))).
+\end{coq}
+In this theorem, all of hte variables in the first three lines are solved immediately once we know the ED and the query that we are chasing.
+The next three lines (starting with the colon) express the tableau homomorphism from the query to the front of the ED.
+In the next two sections we explain how we compute this homomorphism.
 
-\subsubsection{Finding a Morphism}
-\label{sec:find-morphism}
-Given a ED, the first part of the chase step is to find a tableau homomorphism from the query to the front of the ED.
+\paragraph{Finding a Morphism}
 In the explanation of the chase step in Section~\ref{sec:chase} the morphism was from the variables bound in the {\tt for}-clause to the variables bound in the front of the embedded dependency.
 In our movie query example this corresponds to a mapping that assigns values in $\{x,y\}$ to values in $\{m_1,m_2\}$.
 
@@ -994,9 +1027,19 @@ h x = (snd x, snd x)
 \end{coq}
 Where \coqe{fst} extracts the first element of the pair and \coqe{snd} extracts the second.
 
-As before, we are going to construct these functions incrementally using particular theorems that represent individual steps of reasoning.
-Ultimately, our algorithm considers each value bound in the query and maps to to a value bound from the ED.
-We encode this process using the following lemmas:
+As before, we are going to construct these functions incrementally using theorems that represent individual steps of reasoning.
+The search is much the same as the search for isolating a particular ED.
+There are two main differences.
+The first is that we must now find a binder for each binder in the front of the ED.
+The second is that in doing so, we must construct the morphism \coqe{h} so that we can use it when we check the side-condition.
+
+When searching for the homomorphism, the goal will have the following form, where \coqe{P} is the {\tt for}-clause of the query and \coqe{F} is the {\tt forall}-clause in the ED.
+\begin{coq}
+Mimpl (Mmap ?h P) F
+\end{coq}
+
+The first task is to break \coqe{F} down into atomic units which, essentially, correspond to the binders.
+The \coqe{pick_split} lemma applies when \coqe{F} is formed from a \coqe{Mplus}.
 \begin{coq}
 Lemma pick_split
 : forall {T U U' : Type} (m : M T) (u : M U) (u' : M U') f g,
@@ -1004,7 +1047,13 @@ Lemma pick_split
   Mimpl (Mmap g m) u' ->
   Mimpl (Mmap (fun x => (f x, g x)) m) (Mplus u u').
 Proof. ... Qed.
+\end{coq}
+This lemma states that we can find a morphism from \coqe{m} to \coqe{Mplus u u'} if we can find a morphism from \coqe{m} to \coqe{u} and from \coqe{m} to \coqe{u'}.
+Note that in addition to breaking down the morphism by decomposing it into \coqe{f} and \coqe{g}, the left-hand-side of the implication also shows how to construct the final homomorphism given \coqe{f} and \coqe{g}.
 
+Reapeatedly applying \coqe{pick_split} will eventually break the {\tt forall}-clause down into atomic elements that we can match up with the query.
+This matching is essentially the same as the ED search procedure except that, as above, we must record the way to re-constuct the \coqe{h} function.
+\begin{coq}
 Lemma pick_left {T' U' V} (f' : _ -> V) (x : M V) (y : M T') (k' : M U')
 : Mimpl (Mmap f' k') x ->
   Mimpl (Mmap (fun x => f' (fst x)) (Mplus k' y)) x.
@@ -1019,49 +1068,51 @@ Lemma pick_here {T} (x : M T)
 : Mimpl (Mmap (fun x => x) x) x.
 Proof. ... Qed.
 \end{coq}
-The first theorem (\coqe{pick_split}) finds a morphism from \coqe{Z} to \coqe{Mplus x y} by combining a morphism from \coqe{Z} to \coqe{x} with another morphism from \coqe{Z} to \coqe{y}.
 \coqe{pick_left} decides to use only the left-hand side of the \coqe{Mplus k' y} to determine \coqe{x}, \coqe{pick_right} is analagous for the right-hand side.
 Finally, \coqe{pick_here} applies when the value being searched for is exactly the value being bound in which case it can pick the value directly.
 
-We combine these proofs into into a search using \ltac's backtracking \coqe{+} operator.
-The core of the procedure is the following:
-\begin{coq}
-Ltac find_bind_morphism :=
-  lazymatch goal with
-  | |- Mimpl (Mmap _ _) (Mplus _ _) =>
-      (eapply pick_split)
-  | |- Mimpl _ _  =>
-      (simple eapply pick_here)
-    + (simple eapply pick_left)
-    + (simple eapply pick_right)
-  end ; find_bind_morphism.
-\end{coq}
-Applied to our simple example this essentially amounts to:
-\begin{coq}
-eapply pick_split ;
-  (simple eapply pick_here + simple eapply pick_left + simple eapply pick_right) ;
-  (simple eapply pick_here + simple eapply pick_left + simple eapply pick_right)
-\end{coq}
-The first application splits the morphism into two parts, and the semi-colon runs the remainder of the tactic on the two independent goals.
-The plus operator effectively allows choices to be made independently and allows backtracking to encode the non-deterministic choice.
-In this case, along the first goal we \coqe{pick_left} and then \coqe{pick_here} and along the second we \coqe{pick_right} and then \coqe{pick_here}.
-The search completes with each of the four candidate morphisms written above, the next step is to solve the side conditions.
+%% We combine these proofs into into a search using \ltac's backtracking \coqe{+} operator.
+%% The core of the procedure is the following:
+%% \begin{coq}
+%% Ltac find_bind_morphism :=
+%%   lazymatch goal with
+%%   | |- Mimpl (Mmap _ _) (Mplus _ _) =>
+%%       (eapply pick_split)
+%%   | |- Mimpl _ _  =>
+%%       (simple eapply pick_here)
+%%     + (simple eapply pick_left)
+%%     + (simple eapply pick_right)
+%%   end ; find_bind_morphism.
+%% \end{coq}
+%% Applied to our simple example this essentially amounts to:
+%% \begin{coq}
+%% eapply pick_split ;
+%%   (simple eapply pick_here + simple eapply pick_left + simple eapply pick_right) ;
+%%   (simple eapply pick_here + simple eapply pick_left + simple eapply pick_right)
+%% \end{coq}
+%% The first application splits the morphism into two parts, and the semi-colon runs the remainder of the tactic on the two independent goals.
+%% The plus operator effectively allows choices to be made independently and allows backtracking to encode the non-deterministic choice.
+%% In this case, along the first goal we \coqe{pick_left} and then \coqe{pick_here} and along the second we \coqe{pick_right} and then \coqe{pick_here}.
+
+The search completes with each of the four candidate morphisms written above, the next step is to attempt to solve the side condition.
 
 \paragraph{Solving the Side-conditions}
-With a candidate morphism in hand, the next step is to discharge the side condition which guarantees that the \WHERE-clause of the query implies the \WHERE-clause of the embedded dependency.
+With a candidate morphism in hand, the next step is to discharge the side condition which guarantees that the {\tt where}-clause of the query implies the {\tt where}-clause of the embedded dependency.
 In our problem, this amounts to the following:
 \begin{coq}
-forall x : S, (fst x).(title) ?[=] (snd x).(title) = true
+forall x : Movie $\times$ Movie, (fst x).(title) ?[=] (snd x).(title) = true
      -> (fst (h x)).(title) ?[=] (snd (h x)).(title)
 \end{coq}
 However, once we get to this step, \coqe{h} is exactly one of the morphisms constructed by the previous step.
 When we plug in the correct morphism, i.e. \coqe{h x = (fst x, snd x)} (recall that we are enumerating all of the potential morphisms) we get the following:
 \begin{coq}
-forall x : S, (fst x).(title) ?[=] (snd x).(title) = true
+forall x : Movie $\times$ Movie, (fst x).(title) ?[=] (snd x).(title) = true
      -> (fst x).(title) ?[=] (snd x).(title) = true
 \end{coq}
+
 While this goal is trivially true, in general these side conditions can require potentially arbitrary reasoning.
-For example, in the indexing example, proving this implication requires proving the following arithmetic fact.
+In order to make the automation extensible, the chase tactic is parameterized by the tactic to use to discharge this side-condition.
+For example, in the indexing example from Section~\ref{sec:??} we must prove the following implication which relies on arithmetic reasoning.
 \begin{coq}
 forall p, p.age ?[>] 16 && p.age ?[<] 18 = true ->
           p.age ?[<] 21 = true
@@ -1069,11 +1120,11 @@ forall p, p.age ?[>] 16 && p.age ?[<] 18 = true ->
 Coq already has the \coqe{omega} tactic for performing arithmetic reasoning.
 In addition, we can develop our own theorems and \ltac{} for automating different domains, for example the length of strings, the case of characters, or even complex arithmetic on floating point numbers.
 
-\greg{The automation used here is a parameter to the tactic}
-
 \paragraph{Ensuring Progress}
-After the side-condition is checked, the final piece is to ensure that this chase step makes interesting progress by adding \emph{new} facts or data to the query.
-This check simply requires that we have a tactic that can find an isomorphism between queries, which is essentially the same as what we have done up until this point, except that we also need to prove that the \RETURN-clauses of the two queries are equal under the assumptions in the \WHERE-clause.
+After the side-condition is checked, the final piece is to ensure that this chase step makes progress by adding \emph{new} information or data to the query.
+Semantically, we express this by ensuring that the new query is not isomorphic to the old query.
+Checking this isomorphism \emph{between queries} is essentially the same as what we have done up to this point except that we must also show that the morphism preserves the {\tt return}-clause of the query under the assumptions in the {\tt where}-clause.
+%% This check simply requires that we have a tactic that can find an isomorphism between queries, which is essentially the same as what we have done up until this point, except that we also need to prove that the \RETURN-clauses of the two queries are equal under the assumptions in the \WHERE-clause.
 The \ltac{} to check this is trivial given the machinery that we developed in the previous two steps.
 The entire \ltac{} is (essentially) the following:
 \begin{coq}
@@ -1084,15 +1135,32 @@ Ltac prove_query_morphism solver :=
     | simpl ; solve [ solver ] ]).
 
 Ltac prove_query_isomorphism solver :=
-  split; prove_query_morphism solver
+  split; prove_query_morphism solver.
 \end{coq}
+Note again that these tactics are parameterized by the underlying solver that that will use to discharge the side-conditions.
 
+\subsubsection{Computing the Fixpoint}
+With the ability iterate over the EDs (Section~\ref{sec:traverse-eds}) and compute a chase step (Section~\ref{sec:chase-step}), it is simple to implement the entire chase.
+The key detail to be aware of when constructing the full chase lies in delimiting the backtracking that the algorithm requires.
+When we fail to chase with a particular ED, it is no longer necessary to backtrack into that search until we have added new information.
+To ensure that we do not backtrack between two different chase steps, we use \ltac's \coqe{once} and \coqe{first} tacticals.
+\begin{coq}
+repeat first [ eapply transitive_refine_conditional ;
+                [ solve [ once (ed_search ; chase_step solver) ]
+                | idtac ]
+             | eapply reflexive_refine_conditional ].
+\end{coq}
+Here, \coqe{repeat} repeats this until the goal is solved or the tactic fails.
+\coqe{first [ a | b ]} runs \coqe{a} and, if it fails, runs \coqe{b}.
+The \coqe{transitive_refine_conditional} theorem applies transitivity speculating progress while leaving the door open to further optimization.
+The first of the two goals is solved using the tactic on the second line.
+Here, \coqe{solve} requires that the inner tactic completely solves the goal, and \coqe{once} prevents backtracking triggered by later pieces of the search.
+If progress can not be made in the chase, then the goal is solved by the second branch of the \coqe{first} tactical which picks the current query as the result.
 
-\greg{Note that we are removing some of the complexity from the tactics.}
-
-
+Note that by developing this procedure in \ltac{} there is no way to reason about whether it terminates.
 
 \subsection{Minimization}
+\label{sec:minimization}
 
 The final step in optimization is to remove extraneous binds from the query.
 By now, the techniques are all old-hat.
@@ -1124,7 +1192,7 @@ The second premise, ensures that this choice of \coqe{f} respects the equivalenc
 \coqe{minimize_keep} is the fallback case.
 If we can not find a way to construct the information from the rest of the query, then we must keep this information, but we can still optimize the rest of the query (represented by quantifying over any value from the relation and ensuring that the rest of the query is still valid).
 
-\greg{Note, this is a bit incomplete because the current automation does not allow backwards minimization}
+%% \greg{Note, this is a bit incomplete because the current automation does not allow backwards minimization}
 
 \subsection{Extension}
 The main benefit (which we will see throughout the pipeline) is the ability to easily extend the transformations simply by proving relatively simple lemmas such as the ones above.
