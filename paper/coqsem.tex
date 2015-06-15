@@ -115,7 +115,7 @@ The $\overrightarrow{(x \IN X)}$ are called {\it generators}.  A (conjunctive) {
 \begin{normalsize}
 $$ \FOR (g \IN Groups) \ (person \IN g) \ \ldots $$
 \end{normalsize}
-\item It is possible to interpret queries in arbitrary {\it monads with zeroes and pluses}, for example, the list monad or the bag monad.  However, the  optimization procedure described in this paper is only sound for monads that are commutative and idempotent~\cite{Popa99anequational}:
+\item It is possible to interpret queries in arbitrary {\it monads with zeroes}, for example, the list monad or the bag monad.  However, the  optimization procedure described in this paper is only sound for monads that are commutative and idempotent~\cite{Popa99anequational}:
 $$
 \FOR (x \IN X)(y \IN Y)  \cong \FOR (y \IN Y) (x \IN X) 
 $$
@@ -552,7 +552,7 @@ Definition q : set (string * string) :=
   guard (title m1 = title m2) ;
   return (director m1, actor m2).
 \end{coq}
-Here, \coqe{q} is the name of the query.  Our Coq query syntax is inspired by Haskell's syntax for monadic computations, and Coq's ``notation'' mechanism allows us to define infix operations such as \coqe{<-}.  Intuitively, \coqe{<-} means {\tt for}, \coqe{guard} means {\tt where}, and \coqe{return} means {\tt return}.  To the right of the colon is the query's type, \coqe{set (string * string)}, which represents a set that contains pairs of strings, and our Coq development is parametric in the implementation of the underlying type of sets.  For example, we can choose \coqe{set x := list x} and implement sets as lists, or choose \coqe{set x := x -> Prop} and implement sets as Coq ``ensembles''.  In fact, \coqe{set} need not even be a set monad; it need only be an arbitrary commutative, idempotent monad with zero and plus, which is why much of our Coq code refers to \coqe{M} (for monad) rather than \coqe{set}; see Figure~\ref{fig:chaseable-functor}.
+Here, \coqe{q} is the name of the query.  Our Coq query syntax is inspired by Haskell's syntax for monadic computations, and Coq's ``notation'' mechanism allows us to define infix operations such as \coqe{<-}.  Intuitively, \coqe{<-} means {\tt for}, \coqe{guard} means {\tt where}, and \coqe{return} means {\tt return}.  To the right of the colon is the query's type, \coqe{set (string * string)}, which represents a set that contains pairs of strings, and our Coq development is parametric in the implementation of the underlying type of sets.  For example, we can choose \coqe{set x := list x} and implement sets as lists, or choose \coqe{set x := x -> Prop} and implement sets as Coq ``ensembles''.  In fact, \coqe{set} need not even be a set monad; it need only be an arbitrary commutative, idempotent monad with zero, which is why much of our Coq code refers to \coqe{M} (for monad) rather than \coqe{set}; see Figure~\ref{fig:chaseable-functor}.
 
 %While this flexible syntax may make it easier to structure large queries, there are other benefits to it that we will see in Section~\ref{sec:low-level}.
 Given the above query, and a representation of the functional dependency from the introduction, \coqe{title_director_ed}, which we elide for now, we can ask Coq to automatically construct the minimized query as follows:
@@ -657,12 +657,12 @@ Class DataModel (M : Type -> Type) : Type :=
 \label{fig:chaseable-functor}
 \end{figure}
 
-Our Coq library is parametric in an underlying type of sets, and hence we need an interface to interact with various set implementations.  Our interface is based monads~\cite{monad}, which are a useful interface for many kinds of collections, including sets~\cite{monad}.  The operations, but not all required axioms, of our monadic interface are shown in Figure~\ref{fig:chaseable-functor}.  Intuitively, in a set monad these operations are:
+Our Coq library is parametric in an underlying type of sets, and hence we need an interface to interact with various set implementations.  Our interface is based monads~\cite{monad}, which are a useful interface for many kinds of collections, including sets~\cite{monad}.  The operations, but not the required axioms, of our monadic interface are shown in Figure~\ref{fig:chaseable-functor}.  Intuitively, in a set monad these operations are:
 \begin{itemize}
 \item \coqe{Mret v} is the function that injects \coqe{v} into the singleton set containing only \coqe{v}.
 \item \coqe{Mbind m k} is the function that unions all sets \coqe{k x} for every \coqe{x} in the set \coqe{m}.  We will write \coqe{x <- m ; k} for \coqe{Mbind x (fun x => k)} where \coqe{x} occurs free in \coqe{k}.
 \item \coqe{Mzero} is the empty set.
-\item \coqe{Mstr} is the cartesian product of two sets.
+\item \coqe{Mstr} is the cartesian product of two sets.  (In an arbitrary monad we require a {\it strength}~\cite{BW}.)
 \item \coqe{Mguard P m} is defined as \coqe{Mzero}, if \coqe{P} is false and otherwise \coqe{m}.
 \end{itemize}
 
@@ -911,7 +911,7 @@ query (Mstr Movies Movies)
 \subsection{The Chase as a Tactic}
 \label{sec:ltac-chase}
 
-Tableaux minimization makes heavy use of the chase, which we have implemented as a Coq tactic.  In a language-integrated query setting, implementing the chase as a tactic (as opposed to a Coq term) has two critical advantages.  First, the chase may never terminate, but all Coq programs do terminate, so any Coq (but not \ltac{}) implementation of the chase must be explicitly bounded by some number of chase steps.  Second, and more importantly, {\it Coq tactics can appeal to other Coq tactics.}  As we saw in the indexing example in the first half of the paper, running the chase can involve reasoning over predicates such as $<$ that appear in where clauses.  If we were implementing the chase as a Coq program (such as in cite), we would be forced to choose some predetermined set of predicates and implement, as part of the Coq program implementing the chase, a reasoning procedure for terms involving these predicates.  By implementing the chase as a tactic, we can appeal to Coq's \coqe{omega} tactic for reasoning about $<$, for example.  Moreover, the particular predicates and associated tactics need not be determined in advance; users are free to write arbitary Coq code in where clauses, and to construct hint databases for how to reason about the terms in where clauses.  
+Tableaux minimization makes heavy use of the chase, which we have implemented as a Coq tactic.  In a language-integrated query setting, implementing the chase as a tactic (as opposed to a Coq term) has two critical advantages.  First, the chase may never terminate, but all Coq programs do terminate, so any Coq (but not \ltac{}) implementation of the chase must be explicitly bounded by some number of chase steps.  Second, and more importantly, {\it Coq tactics can appeal to other Coq tactics.}  As we saw in the indexing example in the first half of the paper, running the chase can involve reasoning over predicates such as $<$ that appear in where clauses.  If we were implementing the chase as a Coq program (such as in~\cite{coqdb}), we would be forced to choose some predetermined set of predicates and implement, as part of the Coq program implementing the chase, a reasoning procedure for terms involving these predicates.  By implementing the chase as a tactic, we can appeal to Coq's \coqe{omega} tactic for reasoning about $<$, for example.  Moreover, the particular predicates and associated tactics need not be determined in advance; users are free to write arbitary Coq code in where clauses, and to construct hint databases for how to reason about the terms in where clauses.  
 
 Our chase tactic applies to goals that are contingent on EDs.  For example, we can optimize with the \coqe{title_director} ED using the following goal structure.
 \begin{coq}
@@ -921,6 +921,8 @@ Meq ?q
      guard (title m1 = title m2) ;
      return (director m1, actor m2))
 \end{coq}
+
+Recall from the first half of the paper that running the chase required several steps: choosing an ED, finding a candidate substitution, checking that a candidate is in fact a homomorphism, taking a chase step, and then checking for convergence to a fixed point.  In the rest of this section we examine each of these steps.
 
 %% Chasing a query requires solving 4 problems in order:
 %% \begin{enumerate}
@@ -1000,8 +1002,8 @@ In the next two paragraphs we explain how we compute this homomorphism.
 \paragraph{Finding a Homomorphism}
 In the definition of a chase step in Section~\ref{sec:chase} a homomorphism is a map from variables bound in the front of the embedded dependency to the variables bound in the {\tt for}-clause of the query.  In our movie query example this corresponds to a mapping that assigns values in $\{x,y\}$ to values in $\{m_1,m_2\}$.
 
-Since our queries are simply Coq terms, referencing these binders explicitly can be quite difficult, and is not very extensible.
-Rather, we will encode our mapping of binders as a function between the types being bound.
+Since our queries are simply Coq terms, explicitly referencing binders by name can be quite difficult, and is not very extensible (i.e., not invariant under $\alpha$-equivalence).
+Instead, we will encode our mapping of binders as a function between the types being bound.
 In this example, the type of the {\tt for}-clause of the query is \coqe{Movie * Movie} and the type of the {\tt forall}-clause is also \coqe{Movie * Movie}, so we are looking for a function \coqe{h : Movie * Movie -> Movie * Movie}.
 Looking at the query and the ED, there are 4 reasonable choices.
 \begin{coq}
@@ -1017,12 +1019,12 @@ The search is much the same as the search for isolating a particular ED.
 There are two main differences.
 The first is that we must now find a binder for each binder in the front of the ED.
 The second is that in doing so, we must explicitly construct a substitution \coqe{h} to use to check that \coqe{h} is actually a homomorphism.
-When searching for the homomorphism, the goal will have the following form, where \coqe{P} is the {\tt for}-clause of the query and \coqe{F} is the {\tt forall}-clause in the ED.
+When searching for the homomorphism, the goal will have the following form, where \coqe{P} is the {\tt for}-clause of the query and \coqe{F} is the {\tt forall}-clause in the ED:
 \begin{coq}
 Mimpl (Mmap ?h P) F
 \end{coq}
-In the above \coqe{Mimpl}, is defined as subset containment (or rather, the analog of subset containment for arbitrary monads), and \coqe{Mmap} expresses the application of a substitution.  The first task is to break \coqe{F} down into atomic units which, essentially, correspond to the binders.
-The \coqe{pick_split} lemma applies when \coqe{F} is formed from a \coqe{Mstr}.
+In the above \coqe{Mimpl}, is defined as subset containment (or rather, the analog of subset containment for arbitrary monads), and \coqe{Mmap} expresses the application of a substitution.  The first task is to break \coqe{F} down into atomic units which correspond to the binders.
+The \coqe{pick_split} lemma applies when \coqe{F} is formed from a \coqe{Mstr}:
 \begin{coq}
 Lemma pick_split
 : forall {T U U' : Type} (m : M T) (u : M U) (u' : M U') f g,
@@ -1079,7 +1081,7 @@ Finally, \coqe{pick_here} applies when the value being searched for is exactly t
 %% The plus operator effectively allows choices to be made independently and allows backtracking to encode the non-deterministic choice.
 %% In this case, along the first goal we \coqe{pick_left} and then \coqe{pick_here} and along the second we \coqe{pick_right} and then \coqe{pick_here}.
 
-The search completes with each of the four candidate substitutions written above, the next step is to attempt to solve the side condition (i.e., that a candidate is in fact a homomorphism).
+The search completes with each of the four candidate substitutions written above, and the next step is to attempt to solve the side condition (i.e., that a candidate is in fact a homomorphism).
 
 \paragraph{Solving the Side-conditions}
 With a candidate substitution in hand, the next step is to discharge the side condition which guarantees that the {\tt where}-clause of the embedded dependency implies the {\tt where}-clause of the query.  In our movies example, this amounts to the following (we will write, for example, \coqe{z.title} instead of \coqe{title z} in an effort to make things more readable):
@@ -1088,7 +1090,7 @@ forall x : Movie $\times$ Movie, (fst x).title = (snd x).title = true
      -> (fst (h x)).title = (snd (h x)).title
 \end{coq}
 
-However, once we get to this step, \coqe{h} is exactly one of the morphisms constructed by the previous step.
+Once we get to this step, \coqe{h} is exactly one of the morphisms constructed by the previous step.
 When we plug in the correct morphism, i.e. \coqe{h x = (fst x, snd x)} (recall that we are enumerating all of the potential morphisms) we get the following:
 \begin{coq}
 forall x : Movie $\times$ Movie, (fst x).title = (snd x).title = true
@@ -1099,16 +1101,16 @@ While this goal is trivially true, in general these side conditions can require 
 In order to make the automation extensible, the chase tactic is parameterized by the tactic to use to discharge this side-condition.
 For example, in the indexing example from Section~\ref{sec:minimize} we must prove the following implication which relies on arithmetic reasoning.
 \begin{coq}
-forall p, p.age ?[>] 16 && p.age ?[<] 18 = true ->
-          p.age ?[<] 21 = true
+forall p, p.age > 16 && p.age < 18 = true ->
+          p.age < 21 = true
 \end{coq}
-Coq already has the \coqe{omega} tactic for performing arithmetic reasoning.
+Coq's \coqe{omega} tactic performs such arithmetic reasoning.
 In addition, we can develop our own theorems and \ltac{} for automating different domains, for example the length of strings, the case of characters, or even complex arithmetic on floating point numbers.
 
 \paragraph{Ensuring Progress}
-After the side-condition is checked, the final piece is to ensure that this chase step makes progress by adding \emph{new} information or data to the query.
-Semantically, we express this by ensuring that the new query is not isomorphic to the old query.
-Checking this isomorphism \emph{between queries} is essentially the same as what we have done up to this point except that we must also show that the morphism preserves the {\tt return}-clause of the query under the assumptions in the {\tt where}-clause.
+After the side-condition is checked, the final step is to ensure that this chase step makes progress by adding \emph{new} information or data to the query.
+Semantically, we express this by ensuring that the new query is not homomorphically equivalent to the old query.
+Checking homomorphic equivalence between queries is essentially the same as what we have done up to this point except that we must also show that the morphism preserves the {\tt return}-clause of the query under the assumptions in the {\tt where}-clause.
 %% This check simply requires that we have a tactic that can find an isomorphism between queries, which is essentially the same as what we have done up until this point, except that we also need to prove that the \RETURN-clauses of the two queries are equal under the assumptions in the \WHERE-clause.
 The \ltac{} to check this is trivial given the machinery that we developed in the previous two steps.
 The entire \ltac{} is (essentially) the following:
@@ -1127,7 +1129,7 @@ Note again that these tactics are parameterized by the underlying solver (\coqe{
 \subsubsection{Computing the Fixedpoint}
 With the ability iterate over the EDs (Section~\ref{sec:traverse-ed}) and compute a chase step (Section~\ref{sec:chase-step}), it is simple to implement the entire chase.
 The key detail to be aware of when constructing the full chase lies in delimiting the backtracking that the algorithm requires.
-When we fail to chase with a particular ED, it is no longer necessary to backtrack into that search until we have added new information.
+When we fail to chase with a particular ED, it is no longer necessary to backtrack into the application of that ED until we have chased with another ED.
 To ensure that we do not backtrack between two different chase steps, we use \ltac's \coqe{once} and \coqe{first} tacticals.
 \begin{coq}
 repeat first
@@ -1169,9 +1171,7 @@ The first premise of this theorem, \coqe{Find f}, is a dummy premise; it is triv
 We include it in order to simplify constructing it using tactics.
 For example, we can easily write lemmas that parallel \coqe{pick_left}, \coqe{pick_right}, and \coqe{pick_here}.
 The second premise, ensures that this choice of \coqe{f} respects the equivalence of the query.
-To solve it, we ``back chase'' the left-hand side of the equivalence and try to determine if it is homomorphically equivalent to the right-hand side.
-
-\coqe{minimize_keep} is the fallback case.
+To solve it, we ``back chase'' the left-hand side of the equivalence and try to determine if it is homomorphically equivalent to the right-hand side.  \coqe{minimize_keep} is the fallback case.
 \begin{coq}
 Lemma minimize_keep
 : forall {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) (qb'' : M T') qg'',
@@ -1182,7 +1182,7 @@ Lemma minimize_keep
       (query (Mstr qb qb'') qg'' qr).
 Proof. ... Qed.
 \end{coq}
-If we can not find a way to construct the information from the rest of the query, then we must keep this information, but we can still optimize the rest of the query (represented by quantifying over any value from the relation and ensuring that the rest of the query is still valid).
+If we can not find a way to re-construct the removed binder from the other binders of the query, then we cannot remove that binder, but we can still optimize the rest of the query (represented by quantifying over any value from the relation and ensuring that the rest of the query is still valid).
 
 
 %\subsection{Extension}
@@ -1208,37 +1208,31 @@ If we can not find a way to construct the information from the rest of the query
 %% \subsection{Non-Semantic Optimization}
 %% \greg{not finished but could be interesting and relatively simple}
 
-\section{Discussion}
+\section{Discussion of Tactic-based Optimization}
 \label{sec:discussion}
 
-The approach that we take in this work is to use tactic-based programming to develop a verifying implementation of semantic query optimization.
-Tactic-based programming has several trade-offs when compared to more traditional development and verification techniques.
+In this paper we have implemented a verifying query optimizer as a Coq tactic.  Doing so has several trade-offs compared to a more traditional approach that would implement a query optimizer as a Coq program (e.g.,~\cite{coqdb}).
 
-The primary benefit of tactic-based programming is the ability to easily extend algorithms with a minimal amount of work.
-Much of this benefit is due to the flexibilty of working indirectly on Coq's underlying terms.
+The primary benefit of the optimizer-as-tactic approach is the ability to easily extend the optimizer with a minimal amount of work.
+Much of this benefit is due to the flexibility of working indirectly on Coq's underlying terms.
 For example, we can extend the chase algorithm with support for nested relations simply by proving new lemmas that show how to locally manipulate terms.
-A more traditional implementation would have to adjust the term representations to support the more sophisticated structure of queries and then update all of the algorithms to work on the new representation.
-Along another vein, we are able to support arbitrary Coq computation within guards.
-While the examples are restricted to using equality and less-than, there is nothing preventing us from reasoning about more complex operations such as the case of characters or the length of strings.
+A non-tactic implementation would have to adjust its concrete term representations to support the more sophisticated structure of nested queries and then update all of its algorithms to work on the new nested representation.
+Similarly, we explicitly support arbitrary Coq computation within where clauses.
+While the examples in this paper use only equality ($=$) and less-than ($<$) in where clauses, there is nothing preventing us from reasoning about more complex operations (e.g., computing the length of strings).
 
-Another benefit of tactic-based programming is that we get to re-use much of the underlying Coq infrastructure.
-In particular, features such as higher-order unification, existing automation, and \ltac's backtracking search mechanism are all useful when building optimization procedures.
-We have found, in particular, that the new backtracking proof search facilities, namely \coqe{+} and dependent goals, introduced in Coq 8.5 are particularly useful for this type of development.
-Without this feature, tactics can not backtrack between different goals which initially forced us to more meticulously maintain goals in addition to forcing us to code in continuation passing style, rather than a more direct style.
+Another benefit of the tactic-based approach is that we are able to re-use much of Coq's underlying  infrastructure.
+Features such as higher-order unification, existing automation libraries, and \ltac's backtracking search mechanism are all useful when building an optimized query.
+We have found, in particular, that the new backtracking proof search facilities, namely \coqe{+} and dependent goals, introduced in Coq 8.5, were extremely useful in building our optimizer.
+Without this backtracking feature, tactics can not backtrack between different goals which initially forced us to more meticulously maintain goals in addition to forcing us to code in continuation passing style, rather than a more direct style.
 
-There are also drawbacks to tactic-based development.
+There are also drawbacks to a tactic-based approach.
 First, tactics are completely untyped which makes it cumbersome to track down errors which are often due to typos.
-While simple types would help track some information, thoughout the course of development we found that one of the most cumbersome parts of development is keeping track of what the goal looks like.
-For example, whether the unfication is on the left or the right of the \coqe{Meq} influences the way that you write lemmas.
-Similarly, many lemmas had to be duplicated to handle extra bits of context.
-For example, we had to write separate lemmas for chaining together refinements in the presence and absence of embedded dependencies.
-Several authors have proposed more richly typed tactic-based programming languages, noteably Mtac~\cite{ziliani2013mtac} and VeriML~\cite{stampoulis2010veriml}.
-While neither of these are as mature or rich as \ltac, it would be interesting to explore whether their features greatly the development process.
+While simple types would help track some information, throughout the course of development we found that one of the most cumbersome tasks was keeping track of simple properties about goals; for example, whether the unification variable to be constructed is on the left or the right of an \coqe{Meq}.  Similarly, many lemmas had to be duplicated to handle extra bits of context; for example, we had to write separate lemmas for chaining together refinements in the presence and absence of embedded dependencies.  Several authors have proposed more richly typed tactic-based programming languages, noteably Mtac~\cite{ziliani2013mtac} and VeriML~\cite{stampoulis2010veriml}, and while neither of these are as mature or rich as \ltac, it would be interesting to explore whether their features would be useful in our development process.
 
-Another problem inherent in tactic-based programming is speed.
+Another problem inherent to \ltac{} is speed.
 Figure~\ref{fig:performance} shows the time it takes to optimize the queries presented in this paper.
-The {\tt normalize} task (not discussed) is the time it takes to convert raw Coq expressions into the form \coqe{query P C R}.
-The {\tt chase} and {\tt minify} phase are the phases described in Sections~\ref{sec:chase-step} and~\ref{sec:minimization}.
+The {\tt normalize} task (not discussed) is the time it takes to normalize Coq terms, using the monad laws, into the flat form \coqe{query P C R}.
+The {\tt chase} and {\tt minimize} phase are the phases described in Sections~\ref{sec:chase-step} and~\ref{sec:minimization}.
 The final {\tt simplify} phase performs rudimentary non-semantic optimization, for example, converting the query
 \begin{coq}
 query (Mmap (fun x => (x,x)) Movie) (fun _ => true)
@@ -1248,7 +1242,6 @@ into
 \begin{coq}
 query Movie (fun _ => true) (fun x => x)
 \end{coq}
-.
 The {\tt Total} row is the total of all of the phases.
 
 \begin{figure}
@@ -1267,18 +1260,21 @@ Simplify       & 0.11  & 0.27 \\\hline
 \label{fig:performance}
 \end{figure}
 
-Figure~\ref{fig:performance} shows the time it takes to optimize the two queries.
-The {\tt minimize} phase is the longest which is the result of needing to perform the back-chase before testing homomorphism equality.
+%Figure~\ref{fig:performance} shows the time it takes to optimize the two queries.
+%The {\tt minimize} phase is the longest which is the result of needing to perform the back-chase before testing homomorphism equality.
 
-\paragraph{A Verified Implementation}
-One of the benefits of working in a rich logic such as Coq is the ability to leverage dependent types to offset some of the burden of building proofs.
-For example, rather than writing tactics to compute the chase and then use Coq's logic to prove the procedure sound similar to the work of Benzaken~\cite{coqdb}.
-This can yield a substantial improvement in performance.
-For example, optimizing the Movie query from beginning to end is practically instantaneous using Coq's \coqe{vm_compute} reduction mechanism~\cite{gregoire2002vmcompute}.
+One way to make our query optimizer go faster is to implement pieces of it directly as Coq programs.  Indeed, our initial prototype implementation was a Coq program rather than a tactic and it ran nearly instantaneously on the Movies query.  However, implementing the optimizer entirely as a Coq program suffers from all the drawbacks above.  Hence, we believe there is a balance to be struck, where the pieces of the optimizer that are invoked often should be implemented as Coq programs, and the pieces of the optimizer than need to be extensible by users should be implemented as Coq tactics.  Finding the exact balance between the two approaches is a promising direction for future work.
 
-The price we pay for this speed is the need to reimplement some of Coq's internal features such as unification.
-For example, while we were able to quickly write a basic tautology solver capable of discharging the side conditions needed for the movies example, it would havce been quite a bit more work to implement a procedure capable of reasoning about numbers necessary for the indexing example.
-Fundamentally, however, there is nothing that prevents us from performing this kind of reasoning within the logic, and a variety of work~\cite{malecha2015thesis,besson2007micromega,braibant2011aac,lescuyer2009sat,lescuyer2011these} has shown it to be both an efficient and powerful mechanism.
+% we quickly found that that approach (similar to~\cite{coqdb}) required an inordinate amount of work to extend: it required building a Coq program to solve
+%
+%of the benefits of working in a rich logic such as Coq is the ability to leverage dependent types to offset some of the burden of building proofs.
+%For example, rather than writing tactics to compute the chase and then use Coq's logic to prove the procedure sound similar to the work of Benzaken~\cite{coqdb}.
+%This can yield a substantial improvement in performance.
+%For example, optimizing the Movie query from beginning to end is practically instantaneous using Coq's \coqe{vm_compute} reduction mechanism~\cite{gregoire2002vmcompute}.
+%
+%The price we pay for this speed is the need to reimplement some of Coq's internal features such as unification.
+%For example, while we were able to quickly write a basic tautology solver capable of discharging the side conditions needed for the movies example, it would havce been quite a bit more work to implement a procedure capable of reasoning about numbers necessary for the indexing example.
+%Fundamentally, however, there is nothing that prevents us from performing this kind of reasoning within the logic, and a variety of work~\cite{malecha2015thesis,besson2007micromega,braibant2011aac,lescuyer2009sat,lescuyer2011these} has shown it to be both an efficient and powerful mechanism.
 
 
 %% There has been some work in marrying the beneficial parts of tactic-based and standard programming within a proof assistant.
@@ -1286,20 +1282,16 @@ Fundamentally, however, there is nothing that prevents us from performing this k
 %% Emperical results show that this can yield orders of magnitude performance improvement on some problems and provides more flexibility to directly manipulate terms than the tactic-base approach that we use in this work.
 
 
-\section{Conclusions}
+\section{Conclusion}
 
-In this work we developed a verifying semantic query optimizer using the chase.
-Our approach leverages programming with tactics to manipulate raw Coq terms and simultaneously produce an optimized query and a proof that the query has the same meaning as the input query.
-Performing this optimization using tactics has its own set of problems.
-For example, terms need to be manipulated indirectly through applying and rewriting, backtracking search is necessary to explore multiple potential optimization paths, and traditional first-order phrasings of syntax manipulation in terms of binders needs to be translated to manipulations of environments.
-By solving these problems, we leave the optimzation open to extension through other tactics.
-For example, our reasoning already makes use of Coq's \coqe{omega} tactic for reasoning about natural numbers and extending it with other smarts is not difficult.
+In this paper we have described a verifying semantic query optimizer for Coq based on the chase~\cite{Deutsch:2006:QRC:1121995.1122010}.  Our approach leverages programming with tactics to manipulate raw Coq terms and simultaneously produce an optimized query and a proof that the query has the same meaning as the input query.  Implementing the optimizer as a tactic has many advantages, including, first and foremost, essentially unlimited extensibility: because Coq tactics can invoke other tactics, users are free to plug-in their own proof automation to be used during the optimization process.  For example, one of our examples makes use of Coq's \coqe{omega} tactic for reasoning about natural numbers and the less than relation $<$.   As far as we are aware, no other work on formalizing the relational model in Coq (e.g., ~\cite{coqdb}) implements the chase as a tactic.
 
-While not currently competivitve with more traditional programming languages in terms of speed, the features built into \ltac{} makes it a good choice to implement optimizations of this variety.
-Looking forward, tactic-based programming is likely to improve.
-It already features prominently in the development of Idris~\cite{brady2013idris}, and recent work~\cite{malecha2015thesis,devriese2013tsmp,vanderwalt2013engineering-reflection-agda} has shown how tactic-based programming can be made first-class given sufficiently rich type systems.
-As these systems mature, they will begin to develop their own customizable and extensible automation libraries that will enable them to be used in the same ways that we currently use scripting languages.
-This next wave of tactic-based languages and libraries are already demonstrating substantial performance improvements and it is likely that it won't be too long before semantic optimization will begin to make it into mainstream systems.
+However, implementing query optimization as a tactic does pose certain challenges, most of which arise because \ltac{} was designed with proof scripting in mind, rather than query optimization.
+For example, queries need to be manipulated indirectly through applying and rewriting lemmas; backtracking search is necessary to explore multiple potential optimization paths; and traditional first-order phrasings of syntax in terms of binders with concrete variable names need to be translated to manipulations of environments.  We hope that our solutions to these issues in this paper will allow others to create their own query (and program) optimizers as Coq tactics.  
+
+While not currently competitive with more traditional programming languages in terms of speed, \ltac{} is continually improving and features prominently in the development of large-scale verified software systems such as Idris~\cite{brady2013idris}.  Moreover, recent work~\cite{malecha2015thesis,devriese2013tsmp,vanderwalt2013engineering-reflection-agda} has shown how tactic-based programming can be made first-class (i.e., reified into Coq proper) by exploiting dependent types.
+%These systems have all begun to develop their own customizable and extensible automation libraries that will enable them to be used in the same ways that we currently use scripting languages.
+This next wave of tactic-based languages and libraries are already demonstrating substantial performance improvements and it is likely that it won't be too long before tactic-based optimization is a viable design pattern for language-integrated query systems.
 
 
 
