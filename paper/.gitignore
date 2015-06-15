@@ -3,4 +3,5 @@
 *.out
 *.synctex.gz
 *.blg
+*.bbl
 coqsem.pdf

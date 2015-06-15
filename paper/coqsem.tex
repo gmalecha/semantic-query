@@ -691,9 +691,9 @@ Definition embedded_dependency {S S': Type}
 \subsection{Background: Tactic-based Programming}
 \label{sec:tactic-based}
 
-The core of the Coq Proof Assistant is a pure and dependently-typed functional programming language, which by the Curry-Howard correspondence~\cite{} is also a logic.  In addition, Coq also features a partial, untyped ``tactic'' language called \ltac{} which can be used to construct Coq terms in a semi-imperative style.  \ltac{} is a meta-language for Coq, in much the same way that macros are a meta-language in C++.  The Coq terms that \ltac{} produces are checked by the Coq kernel in the same way that all Coq terms are checked by the kernel.  
+The core of the Coq Proof Assistant is a pure and dependently-typed functional programming language, which by the Curry-Howard correspondence is also a logic.  In addition, Coq also features a partial, untyped ``tactic'' language called \ltac{} which can be used to construct Coq terms in a semi-imperative style.  \ltac{} is a meta-language for Coq, in much the same way that macros are a meta-language in C++.  The Coq terms that \ltac{} produces are checked by the Coq kernel in the same way that all Coq terms are checked by the kernel.  
 
-In this paper, we propose to use \ltac{} to optimize queries.  This use of \ltac{} is somewhat unorthodox; the standard use of \ltac{} is to prove theorems via ``proof scripts'' that express how proofs should be built.  Indeed, the operational semantics of \ltac{} are tailored to fit this standard use of \ltac{}, rather than to fit our use of \ltac{} as a query optimizer.  For example, every \ltac{} tactic runs against a particular ``proof obligation'' (a.k.a goal), such as \coqe{x + y = y + x}.  In general, these goals are fully determined and it is simply the tactic's job to find a suitable proof.  In our case, instead of being given a fully specified goal, we will be given a partially specified goal that specifies a constraint on a ``unification variable'' that the tactic will seek to fill in while solving the proof.  It is the discovered values of these unification variables that will be our optimized queries.  We will demonstrate our particular way of using \ltac on a simple goal, where we want to find an optimized query for \coqe{?n}:
+In this paper, we propose to use \ltac{} to optimize queries.  This use of \ltac{} is somewhat unorthodox; the standard use of \ltac{} is to prove theorems via ``proof scripts'' that express how proofs should be built.  Indeed, the operational semantics of \ltac{} are tailored to fit this standard use of \ltac{}, rather than to fit our use of \ltac{} as a query optimizer.  For example, every \ltac{} tactic runs against a particular ``proof obligation'' (a.k.a goal), such as \coqe{x + y = y + x}.  In general, these goals are fully determined and it is simply the tactic's job to find a suitable proof.  In our case, instead of being given a fully specified goal, we will be given a partially specified goal that specifies a constraint on a ``unification variable'' that the tactic will seek to fill in while solving the proof.  It is the discovered values of these unification variables that will be our optimized queries.  We will demonstrate our particular way of using \ltac{} on a simple goal, where we want to find an optimized query for \coqe{?n}:
 \begin{coq}
 Meq ?n (x <- Movie ; y <- Movie ; ret x)
 \end{coq}
@@ -1097,7 +1097,7 @@ forall x : Movie $\times$ Movie, (fst x).title = (snd x).title = true
 
 While this goal is trivially true, in general these side conditions can require potentially arbitrary reasoning.
 In order to make the automation extensible, the chase tactic is parameterized by the tactic to use to discharge this side-condition.
-For example, in the indexing example from Section~\ref{sec:??} we must prove the following implication which relies on arithmetic reasoning.
+For example, in the indexing example from Section~\ref{sec:minimize} we must prove the following implication which relies on arithmetic reasoning.
 \begin{coq}
 forall p, p.age ?[>] 16 && p.age ?[<] 18 = true ->
           p.age ?[<] 21 = true
@@ -1238,7 +1238,7 @@ While neither of these are as mature or rich as \ltac, it would be interesting t
 Another problem inherent in tactic-based programming is speed.
 Figure~\ref{fig:performance} shows the time it takes to optimize the queries presented in this paper.
 The {\tt normalize} task (not discussed) is the time it takes to convert raw Coq expressions into the form \coqe{query P C R}.
-The {\tt chase} and {\tt minify} phase are the phases described in Sections~\ref{sec:chase-tac} and~\ref{sec:minimize}.
+The {\tt chase} and {\tt minify} phase are the phases described in Sections~\ref{sec:chase-step} and~\ref{sec:minimization}.
 The final {\tt simplify} phase performs rudimentary non-semantic optimization, for example, converting the query
 \begin{coq}
 query (Mmap (fun x => (x,x)) Movie) (fun _ => true)
@@ -1274,20 +1274,33 @@ The {\tt minimize} phase is the longest which is the result of needing to perfor
 One of the benefits of working in a rich logic such as Coq is the ability to leverage dependent types to offset some of the burden of building proofs.
 For example, rather than writing tactics to compute the chase and then use Coq's logic to prove the procedure sound similar to the work of Benzaken~\cite{coqdb}.
 This can yield a substantial improvement in performance.
-For example, optimizing the Movie query from beginning to end is practically instantaneous using Coq's \coqe{vm_compute} reduction mechanism.
+For example, optimizing the Movie query from beginning to end is practically instantaneous using Coq's \coqe{vm_compute} reduction mechanism~\cite{gregoire2002vmcompute}.
 
 The price we pay for this speed is the need to reimplement some of Coq's internal features such as unification.
 For example, while we were able to quickly write a basic tautology solver capable of discharging the side conditions needed for the movies example, it would havce been quite a bit more work to implement a procedure capable of reasoning about numbers necessary for the indexing example.
+Fundamentally, however, there is nothing that prevents us from performing this kind of reasoning within the logic, and a variety of work~\cite{malecha2015thesis,besson2007micromega,braibant2011aac,lescuyer2009sat,lescuyer2011these} has shown it to be both an efficient and powerful mechanism.
 
-There has been some work in marrying the beneficial parts of tactic-based and standard programming within a proof assistant.
-\textsc{MirrorCore} defines a deep embedding of a simply typed language within Coq and builds a tactic language, \textsc{Rtac}, on top of it~\cite{malecha2014thesis}.
-Emperical results show that this can yield orders of magnitude performance improvement on some problems and provides more flexibility to directly manipulate terms than the tactic-base approach that we use in this work.
+
+%% There has been some work in marrying the beneficial parts of tactic-based and standard programming within a proof assistant.
+%% \textsc{MirrorCore} defines a deep embedding of a simply typed language within Coq and builds a tactic language, \textsc{Rtac}, on top of it~\cite{malecha2015thesis}.
+%% Emperical results show that this can yield orders of magnitude performance improvement on some problems and provides more flexibility to directly manipulate terms than the tactic-base approach that we use in this work.
 
 
 \section{Conclusions}
 
-In this work we developed a verifying semantic query optimizer based on the chase.
-Our approach leverages programming with tactics to manipulate raw Coq terms and simultaneously produce an optimized query and a proof that it has the same meaning as the input query.
+In this work we developed a verifying semantic query optimizer using the chase.
+Our approach leverages programming with tactics to manipulate raw Coq terms and simultaneously produce an optimized query and a proof that the query has the same meaning as the input query.
+Performing this optimization using tactics has its own set of problems.
+For example, terms need to be manipulated indirectly through applying and rewriting, backtracking search is necessary to explore multiple potential optimization paths, and traditional first-order phrasings of syntax manipulation in terms of binders needs to be translated to manipulations of environments.
+By solving these problems, we leave the optimzation open to extension through other tactics.
+For example, our reasoning already makes use of Coq's \coqe{omega} tactic for reasoning about natural numbers and extending it with other smarts is not difficult.
+
+While not currently competivitve with more traditional programming languages in terms of speed, the features built into \ltac{} makes it a good choice to implement optimizations of this variety.
+Looking forward, tactic-based programming is likely to improve.
+It already features prominently in the development of Idris~\cite{brady2013idris}, and recent work~\cite{malecha2015thesis,devriese2013tsmp,vanderwalt2013engineering-reflection-agda} has shown how tactic-based programming can be made first-class given sufficiently rich type systems.
+As these systems mature, they will begin to develop their own customizable and extensible automation libraries that will enable them to be used in the same ways that we currently use scripting languages.
+This next wave of tactic-based languages and libraries are already demonstrating substantial performance improvements and it is likely that it won't be too long before semantic optimization will begin to make it into mainstream systems.
+
 
 
 %% Todo: need to hammer home why writing the chase as a tactic is hard, and why doing it that was is valuable.  This is a good place to compare to MirrorCore~\cite{malecha2014thesis}, rather than the related work.
@@ -1298,5 +1311,6 @@ Our approach leverages programming with tactics to manipulate raw Coq terms and 
 
 \bibliographystyle{plain}
 \bibliography{thesisbib}
+
 
 \end{document}
