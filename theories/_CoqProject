@@ -16,5 +16,6 @@ Entailer.v
 HomomorphismSearch.v
 Demo.v
 Chase.v
+ProveED.v
 Minimize.v
 Parsing.v

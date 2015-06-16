@@ -22,7 +22,155 @@ Fixpoint FSet_cross {T U : Type} (ts : FSet T) (f : T -> FSet U)
 Definition FSet_subset {T} (a b : FSet T) : Prop :=
   forall x, List.In x a -> List.In x b.
 
-Axiom todo : forall {T: Type}, T.
+Instance Refl_FSet_subset : forall A : Type, Reflexive (@FSet_subset A).
+Proof. red. red. tauto. Qed.
+
+Instance Trans_FSet_subset : forall A : Type, Transitive (@FSet_subset A).
+Proof. red. unfold FSet_subset. firstorder. Qed.
+
+Lemma In_cross : forall {T U} (us : T -> FSet U) (ts : FSet T),
+    forall x,
+      In x (FSet_cross ts us) <->
+      exists t u,
+        In t ts /\ In x (us t) /\ x = u.
+Proof.
+  induction ts; simpl; intros.
+  { split.
+    { inversion 1. }
+    { intros.
+      forward_reason. assumption. } }
+  { rewrite List.in_app_iff.
+    rewrite IHts; clear IHts.
+    split; intros; forward_reason.
+    { destruct H; forward_reason.
+      { subst. do 2 eexists; eauto. }
+      { do 2 eexists; eauto. } }
+    { destruct H; subst.
+      { left; eauto. }
+      { right. eauto. } } }
+Qed.
+
+Instance Proper_cross : forall A B : Type,
+   Proper (FSet_subset ==> pointwise_relation A FSet_subset ==> FSet_subset)
+     (@FSet_cross A B).
+Proof.
+Admitted.
+
+Lemma cross_assoc :
+ forall (A B C : Type) (c1 : FSet A) (c2 : A -> FSet B) (c3 : B -> FSet C),
+ FSet_subset (FSet_cross (FSet_cross c1 c2) c3)
+             (FSet_cross c1 (fun x : A => FSet_cross (c2 x) c3)) /\
+ FSet_subset (FSet_cross c1 (fun x : A => FSet_cross (c2 x) c3))
+             (FSet_cross (FSet_cross c1 c2) c3).
+Proof.
+  induction c1.
+  { simpl. split; red; eauto. }
+  { simpl; intros. split; red; intros.
+    { eapply In_cross in H. forward_reason.
+      subst. eapply in_app_iff in H.
+      destruct H.
+      { eapply in_app_iff.
+        left. eapply In_cross. do 2 eexists; split; eauto. }
+      { eapply in_app_iff.
+        right. eapply IHc1.
+        eapply In_cross. do 2 eexists; split; eauto. } }
+    { eapply in_app_iff in H.
+      destruct H.
+      { eapply In_cross in H. forward_reason.
+        subst. eapply In_cross. do 2 eexists; split; eauto.
+        eapply in_app_iff; eauto. }
+      { eapply IHc1 in H.
+        eapply In_cross.
+        eapply In_cross in H.
+        forward_reason. subst.
+        do 2 eexists; split.
+        eapply in_app_iff. eauto. eauto. } } }
+Qed.
+
+Lemma FSet_subset_singleton :
+ forall (A B : Type) (x : A) (c : A -> FSet B),
+ FSet_subset (FSet_cross (FSet_singleton x) c) (c x) /\
+ FSet_subset (c x) (FSet_cross (FSet_singleton x) c).
+Proof.
+  simpl. intros; split; red; intros.
+  { eapply in_app_iff in H.
+    destruct H; auto. inversion H. }
+  { apply in_app_iff. eauto. }
+Qed.
+
+Lemma FSet_subset_cross_singleton :
+ forall (A : Type) (c : FSet A),
+ FSet_subset (FSet_cross c FSet_singleton) c /\
+ FSet_subset c (FSet_cross c FSet_singleton).
+Proof.
+  simpl; intros. split; red; intros.
+  { eapply In_cross in H. forward_reason.
+    subst. simpl in H0. destruct H0; try contradiction.
+    subst. assumption. }
+  { eapply In_cross. do 2 eexists; split; eauto.
+    split; eauto.
+    simpl. auto. }
+Qed.
+
+Lemma FSet_subset_cross_empty :
+ forall (A B : Type) (x : A -> FSet B),
+ FSet_subset (FSet_cross FSet_empty x) FSet_empty /\
+ FSet_subset FSet_empty (FSet_cross FSet_empty x).
+Proof.
+  simpl; intros. split; red; intros; inversion H.
+Qed.
+
+Lemma FSet_subset_ignore :
+ forall (T U : Type) (x : FSet T) (y : FSet U),
+ FSet_subset (FSet_cross x (fun _ : T => y)) y.
+Proof.
+  intros.
+  red. intros. eapply In_cross in H.
+  forward_reason.
+  subst. eauto.
+Qed.
+
+Lemma FSet_subset_empty :
+ forall (T : Type) (c : FSet T), FSet_subset FSet_empty c.
+Proof.
+  red. intros. inversion H.
+Qed.
+
+Lemma FSet_subset_cross_perm :
+ forall (T U V : Type) (m1 : FSet T) (m2 : FSet U) (f : T -> U -> FSet V),
+ FSet_subset (FSet_cross m1 (fun x : T => FSet_cross m2 (f x)))
+   (FSet_cross m2 (fun y : U => FSet_cross m1 (fun x : T => f x y))) /\
+ FSet_subset
+   (FSet_cross m2 (fun y : U => FSet_cross m1 (fun x : T => f x y)))
+   (FSet_cross m1 (fun x : T => FSet_cross m2 (f x))).
+Proof.
+  intros. split; red; intros;
+          repeat match goal with
+                 | H : In _ (FSet_cross _ _) |- _ =>
+                   eapply In_cross in H; forward_reason
+                 end; subst.
+  { subst. eapply In_cross. do 2 eexists; split; eauto.
+    split; eauto.
+    eapply In_cross. do 2 eexists; split; eauto. }
+  { subst. eapply In_cross. do 2 eexists; split; eauto.
+    split; eauto.
+    eapply In_cross. do 2 eexists; split; eauto. }
+Qed.
+
+Lemma FSet_subset_diag :
+ forall (T U : Type) (m : FSet T) (f : T * T -> FSet U),
+ FSet_subset (FSet_cross m (fun x : T => f (x, x)))
+   (FSet_cross m (fun x : T => FSet_cross m (fun y : T => f (x, y)))).
+Proof.
+  intros. red; intros.
+  repeat match goal with
+                 | H : In _ (FSet_cross _ _) |- _ =>
+                   eapply In_cross in H; forward_reason
+                 end; subst.
+   eapply In_cross. do 2 eexists; split; eauto.
+   split; eauto.
+   eapply In_cross. do 2 eexists; split; eauto.
+Qed.
 
 Instance DataModel_FSet : DataModel FSet :=
 { Mret := @FSet_singleton
@@ -31,107 +179,7 @@ Instance DataModel_FSet : DataModel FSet :=
 ; Mimpl := @FSet_subset
 ; makeM := fun _ x => x
 }.
-exact todo.
-exact todo.
-exact todo.
-exact todo.
-exact todo.
-exact todo.
-exact todo.
-exact todo.
-{ intros. red. intros.
-  induction x.
-  { inversion H. }
-  { simpl in H.
-    eapply List.in_app_iff in H. destruct H; auto. } }
-exact todo.
-exact todo.
-exact todo.
+all: abstract eauto using FSet_subset_diag, FSet_subset_empty, FSet_subset_ignore,
+     FSet_subset_cross_singleton, FSet_subset_singleton,
+     cross_assoc, FSet_subset_cross_empty, FSet_subset_cross_perm.
 Defined.
-
-(*
-  Definition M (T : Type) : Type := list T.
-  Definition Mconcat {t} (I : M (M t)) : M t :=
-    List.flat_map (fun x => x) I.
-  Definition Mmap {a b} (f : a -> b) (X : M a) : M b :=
-    List.map f X.
-  Definition Mbind {T U : Type} (c1 : M T) (c2 : T -> M U) : M U :=
-    Mconcat (Mmap c2 c1).
-  Definition Mzero {t} : M t := nil.
-  Definition Mguard {T} (P : bool) (ok : M T) : M T :=
-    if P then ok else Mzero.
-  Definition Mret : forall {T}, T -> M T :=
-    fun _ x => @cons _ x nil.
-
-  Definition makeM {T} (x : list T) : M T := x.
-
-  Definition Mimpl {T} (a b : list T) : Prop :=
-    forall x, List.In x a -> List.In x b.
-
-  Definition Meq {T} (a b : list T) : Prop :=
-    Mimpl a b /\ Mimpl b a.
-
-  Theorem Mmap_Mbind : forall {A B} (f : A -> B) (c : M A),
-      Meq (Mmap f c) (Mbind c (fun x => Mret (f x))).
-  Proof. Admitted.
-
-  Theorem Mbind_assoc : forall {A B C} (c1 : M A) (c2 : A -> M B) (c3 : B -> M C),
-      Meq (Mbind (Mbind c1 c2) c3)
-          (Mbind c1 (fun x => Mbind (c2 x) c3)).
-  Proof. Admitted.
-
-  Theorem Mbind_Mret : forall {A B} (x : A) (c : A -> M B),
-      Meq (Mbind (Mret x) c) (c x).
-  Proof. Admitted.
-
-  Theorem Mret_Mbind : forall {A} (c : M A),
-      Meq (Mbind c Mret) c.
-  Proof. Admitted.
-
-  Definition RelAnd {A} (r P : A -> A -> Prop) : A -> A -> Prop :=
-    fun x y => r x y /\ P x y.
-
-  Instance Proper_Mbind : forall {A B},
-      Proper (Meq ==> (pointwise_relation _ Meq) ==> Meq) (@Mbind A B).
-  Proof. Admitted.
-
-  Instance Proper_Mguard : forall {A},
-      Proper (eq ==> Meq ==> Meq) (@Mguard A).
-  Proof. Admitted.
-
-  Definition query {S T: Type}
-             (P : M S)
-             (C : S -> bool)
-             (E : S -> T) : M T :=
-    Mbind P (fun x => Mguard (C x) (Mret (E x))).
-
-  Definition Mplus {T U} (a : M T) (b : M U) : M (T * U) :=
-    (Mbind a (fun x => Mbind b (fun y => Mret (x,y)))).
-
-  Instance Transitive_Meq : forall {T}, Transitive (@Meq T).
-  Proof. Admitted.
-  Instance Reflexive_Meq : forall {T}, Reflexive (@Meq T).
-  Proof. Admitted.
-  Instance Symmetry_Meq : forall {T}, Symmetric (@Meq T).
-  Proof. Admitted.
-
-  Instance Transitive_Mimpl : forall {T}, Transitive (@Mimpl T).
-  Proof. Admitted.
-  Instance Reflexive_Mimpl : forall {T}, Reflexive (@Mimpl T).
-  Proof. Admitted.
-
-  Lemma Mbind_Mimpl : forall {T V} (P : M T) (Q : M _) (k : _ -> M V),
-      Mimpl P Q ->
-      Meq (Mbind P k) (Mbind (Mplus P Q) (fun x => k (fst x))).
-  Proof. Admitted.
-
-  Lemma Mguard_Mmap : forall {A B C} (f : A -> B) (X : M A) (P : _ -> bool) (k : M C),
-      Meq (Mbind X (fun x => Mguard (P (f x)) k))
-          (Mbind (Mmap f X) (fun x => Mguard (P x) k)).
-  Proof. Admitted.
-
-  Lemma Mguard_andb : forall {A} (P Q : bool) (k : M A),
-      Meq (Mguard (P && Q) k) (Mguard P (Mguard Q k)).
-  Proof. Admitted.
-End ListModel.
-*)
