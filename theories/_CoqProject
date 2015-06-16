@@ -10,8 +10,10 @@ DemoLtacIndex.v
 
 Types.v
 Expr.v
+Tables.v
 RecordTableaux.v
 Entailer.v
+HomomorphismSearch.v
 Demo.v
 Chase.v
 Minimize.v

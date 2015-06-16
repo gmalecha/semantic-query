@@ -246,9 +246,27 @@ Lemma Injective_Proj
                                        end.
 Proof.
   intros.
-  inversion H. exists (eq_sym H1).
-  admit.
-Admitted.
+  refine
+    match H in _ = X
+          return match X in expr _ T
+                       return forall t, expr ts (Tuple t) -> member T t -> Prop
+                 with
+                 | @Proj _ T' t'' x y =>
+                   fun t''' a'' f'' =>
+                     exists pf : t'' = t''',
+                               a'' = match pf in _ = X return expr ts (Tuple X) with
+                                   | eq_refl => x
+                                   end /\
+                               f'' = match pf in _ = X return member T' X with
+                                     | eq_refl => y
+                                     end
+                 | _ => fun _ _ _ => True
+                 end t a f
+    with
+    | eq_refl => _
+    end.
+  exists eq_refl. tauto.
+Defined.
 
 Lemma Injective_Eq : forall ts T T' (a b : expr ts T) (c d : expr ts T'),
     Eq a b = Eq c d ->
@@ -260,9 +278,28 @@ Lemma Injective_Eq : forall ts T T' (a b : expr ts T) (c d : expr ts T'),
           | eq_refl => d
           end.
 Proof.
-  intros. inversion H. exists (eq_sym H1).
-  admit.
-Admitted.
+  intros.
+  refine
+    match H in _ = X
+          return match X in expr _ T
+                       return forall t, expr ts t -> expr ts t -> Prop
+                 with
+                 | @Eq _ t'' x y =>
+                   fun T a'' b'' =>
+                     exists pf : t'' = T,
+                               a'' = match pf in _ = X return expr ts X with
+                                     | eq_refl => x
+                                     end /\
+                               b'' = match pf in _ = X return expr ts X with
+                                     | eq_refl => y
+                                     end
+                 | _ => fun _ _ _ => True
+                 end T a b
+    with
+    | eq_refl => _
+    end.
+  exists eq_refl. tauto.
+Defined.
 
 Lemma Injective_Lt : forall ts (a b : expr ts Nat) (c d : expr ts Nat),
     Lt a b = Lt c d ->
@@ -274,7 +311,22 @@ Defined.
 Lemma Injective_Const : forall ts T v v',
     @Const ts T v = @Const ts T v' ->
     v = v'.
-Proof. Admitted.
+Proof.
+  intros.
+  refine
+    match H in _ = X
+          return match X in expr _ T
+                       return typeD T -> Prop
+                 with
+                 | @Const _ t'' x =>
+                   fun v =>
+                     v = x
+                 | _ => fun _ => True
+                 end v
+    with
+    | eq_refl => eq_refl
+    end.
+Defined.
 
 Definition UIP_type (a : type) (pf : a = a) : pf = eq_refl.
 Proof.
