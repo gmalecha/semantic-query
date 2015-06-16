@@ -54,7 +54,15 @@ Instance Proper_cross : forall A B : Type,
    Proper (FSet_subset ==> pointwise_relation A FSet_subset ==> FSet_subset)
      (@FSet_cross A B).
 Proof.
-Admitted.
+  intros. red. red. red. red.
+  intros.
+  eapply In_cross. eapply In_cross in H1.
+  forward_reason. subst.
+  do 2 eexists; split; eauto.
+  split; eauto.
+  eapply H0. eassumption.
+Qed.
+
 
 Lemma cross_assoc :
  forall (A B C : Type) (c1 : FSet A) (c2 : A -> FSet B) (c3 : B -> FSet C),
