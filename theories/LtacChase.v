@@ -122,10 +122,10 @@ Section normalize_proofs.
     : forall {T U V W : Type} (qb : M T) qg (qr : T -> U) x (y : _ -> _ -> M V),
       Meq (Mbind (query qb qg qr)
                  (fun val : U => Mbind x (y val)))
-          (Mbind (query (Mplus qb x) (fun x => qg (fst x)) (fun x => (qr (fst x), snd x)))
+          (Mbind (query (Mprod qb x) (fun x => qg (fst x)) (fun x => (qr (fst x), snd x)))
                  (fun val : U * W => y (fst val) (snd val))).
   Proof.
-    unfold query, Mplus; intros. rw_M.
+    unfold query, Mprod; intros. rw_M.
     eapply Proper_Mbind_eq; try reflexivity.
     red. intros. simpl.
     destruct (qg a); simpl; rw_M; try reflexivity.
@@ -138,7 +138,7 @@ Section normalize_proofs.
           (Mbind (query (Mdplus qb x) (fun x => qg (fst x)) (fun x => (fst x, snd x)))
                  (fun val : T * W => y (fst val) (snd val))).
   Proof.
-    unfold query, Mplus; intros. rw_M.
+    unfold query, Mprod; intros. rw_M.
     eapply Proper_Mbind_eq; try reflexivity.
     red. intros. simpl.
     destruct (qg a); simpl; rw_M; try reflexivity.
@@ -151,7 +151,7 @@ Section normalize_proofs.
           (Mbind (query (Mdplus qb (fun y => x (qr y))) (fun x => qg (fst x)) (fun x => (qr (fst x), snd x)))
                  (fun val : U * W => y (fst val) (snd val))).
   Proof.
-    unfold query, Mplus; intros. rw_M.
+    unfold query, Mprod; intros. rw_M.
     eapply Proper_Mbind_eq; try reflexivity.
     red. intros. simpl.
     destruct (qg a); simpl; rw_M; try reflexivity.
@@ -227,9 +227,9 @@ Section chase_proofs.
     : forall {T U U' : Type} (m : M T) (u : M U) (u' : M U') f g,
       Mimpl (Mmap f m) u ->
       Mimpl (Mmap g m) u' ->
-      Mimpl (Mmap (fun x => (f x, g x)) m) (Mplus u u').
+      Mimpl (Mmap (fun x => (f x, g x)) m) (Mprod u u').
   Proof.
-    unfold Mmap, Mplus; intros.
+    unfold Mmap, Mprod; intros.
     rewrite <- H; clear H.
     rw_M.
     rewrite Mbind_perm.
@@ -241,7 +241,7 @@ Section chase_proofs.
 
   Lemma pick_left {T' U' V} (f' : _ -> V) (x : M V) (y : M T') (k' : M U')
   : Mimpl (Mmap f' k') x ->
-    Mimpl (Mmap (fun x => f' (fst x)) (Mplus k' y))
+    Mimpl (Mmap (fun x => f' (fst x)) (Mprod k' y))
           x.
   Proof.
     intros. rewrite <- H; clear H.
@@ -251,7 +251,7 @@ Section chase_proofs.
 
   Lemma pick_right {T' U' V} (f' : _ -> V) (x : M V) (y : M T') (k' : M U')
     : Mimpl (Mmap f' k') x ->
-      Mimpl (Mmap (fun x => f' (snd x)) (Mplus y k'))
+      Mimpl (Mmap (fun x => f' (snd x)) (Mprod y k'))
             x.
   Proof.
     intros. rewrite <- H; clear H.
@@ -292,12 +292,11 @@ Section chase_proofs.
         (forall x : S, C x = true -> Gf (h x) = true) ->
         embedded_dependency F Gf B Gb ->
         Meq (query P C E)
-            (query (Mplus P B)
+            (query (Mprod P B)
                    (fun ab : S * U => (C (fst ab) && Gb (h (fst ab)) (snd ab))%bool)
                    (fun ab : S * U => E (fst ab))).
   Proof.
-    intros.
-    eapply chase_sound_general; eauto.
+    eauto using chaseable.
   Qed.
 
   Lemma chase_sound_apply_ed_tt
@@ -315,8 +314,8 @@ Section chase_proofs.
   Proof.
     intros.
     etransitivity.
-    { eapply chase_sound_general; eauto. }
-    { unfold Mplus. unfold query.
+    { eauto using chaseable. }
+    { unfold Mprod. unfold query.
       repeat setoid_rewrite Mbind_assoc.
       eapply Proper_Mbind_eq. reflexivity.
       red. intros.
@@ -370,7 +369,7 @@ End chase_proofs.
 
 Ltac find_bind_morphism :=
   lazymatch goal with
-  | |- Mimpl (Mmap _ ?D) (Mplus ?A ?B) =>
+  | |- Mimpl (Mmap _ ?D) (Mprod ?A ?B) =>
       (eapply pick_split ; find_bind_morphism)
   | |- Mimpl _ _  =>
     (** Here I should have something that is atomic **)
@@ -438,37 +437,37 @@ Section minimize_lemmas.
   Variable M : Type -> Type.
   Context {DM : DataModel M}.
 
-  Lemma query_assoc_Mplus
+  Lemma query_assoc_Mprod
   : forall {T U V W : Type} (qb : M T) (qb' : M U) (qb'' : M V) qg (qr : _ -> W),
-      Meq (query (Mplus (Mplus qb qb') qb'') qg qr)
-          (query (Mplus qb (Mplus qb' qb''))
+      Meq (query (Mprod (Mprod qb qb') qb'') qg qr)
+          (query (Mprod qb (Mprod qb' qb''))
                  (fun xyz => qg (fst xyz, fst (snd xyz), snd (snd xyz)))
                  (fun xyz => qr (fst xyz, fst (snd xyz), snd (snd xyz)))).
   Proof.
-    intros; unfold query, Mplus; rw_M. reflexivity.
+    intros; unfold query, Mprod; rw_M. reflexivity.
   Qed.
 
-  Lemma query_assoc_Mplus'
+  Lemma query_assoc_Mprod'
   : forall {T U V W : Type} (qb : M T) (qb' : M U) (qb'' : M V) qg (qr : _ -> W),
-      Meq (query (Mplus qb (Mplus qb' qb'')) qg qr)
-          (query (Mplus (Mplus qb qb') qb'')
+      Meq (query (Mprod qb (Mprod qb' qb'')) qg qr)
+          (query (Mprod (Mprod qb qb') qb'')
                  (fun xyz => qg (fst (fst xyz), (snd (fst xyz), snd xyz)))
                  (fun xyz => qr (fst (fst xyz), (snd (fst xyz), snd xyz)))).
   Proof.
-    intros; unfold query, Mplus; rw_M. reflexivity.
+    intros; unfold query, Mprod; rw_M. reflexivity.
   Qed.
 
   Lemma minimize_drop
   : forall {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) f (qb'' : M T') qg'',
       forall Hignore : Find f,
-      Meq (query (Mplus qb qb') qg qr)
+      Meq (query (Mprod qb qb') qg qr)
           (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y))) ->
       Meq (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y)))
           (query qb'' (fun y => qg'' (f y,y)) (fun y => qr (f y,y))) ->
-      Meq (query (Mplus qb qb') qg qr)
+      Meq (query (Mprod qb qb') qg qr)
           (query (Mmap (fun x => (f x, x)) qb'') qg'' qr).
   Proof.
-    unfold query, Mplus. intros.
+    unfold query, Mprod. intros.
     rewrite <- H in H0; clear H.
     rewrite H0; clear H0.
     unfold Mmap. rw_M.
@@ -480,8 +479,8 @@ Section minimize_lemmas.
       (forall x,
           Meq (query qb' (fun y => qg (x,y)) (fun y => qr (x,y)))
               (query qb'' (fun y => qg'' (x,y)) (fun y => qr (x,y)))) ->
-      Meq (query (Mplus qb qb') qg qr)
-          (query (Mplus qb qb'') qg'' qr).
+      Meq (query (Mprod qb qb') qg qr)
+          (query (Mprod qb qb'') qg'' qr).
   Proof.
     unfold query. intros.
     rw_M. eapply Proper_Mbind_eq; try reflexivity. eauto.
@@ -491,7 +490,7 @@ Section minimize_lemmas.
   : forall {T T' V : Type} (qb' : M T') qg (qr : _ -> V) (qb'' : M T') qg'' (v : T),
       Meq (query qb' (fun y => qg (v,y)) (fun y => qr (v,y)))
           (query qb'' (fun y => qg'' (v,y)) (fun y => qr (v,y))) ->
-      Meq (query (Mplus (Mret v) qb') qg qr)
+      Meq (query (Mprod (Mret v) qb') qg qr)
           (query qb'' (fun y => qg'' (v,y)) (fun y => qr (v,y))).
   Proof.
     intros. rewrite <- H; clear H.
@@ -512,14 +511,14 @@ Section minimize_lemmas.
   Lemma minimize_drop_under
   : forall M (DM : DataModel M) {T T' V : Type} (qb : M T) (qb' : M T') qg (qr : _ -> V) (qb'' : M T') qg'' f P,
       forall Hignore : Find f,
-      (P -> Meq (query (Mplus qb qb') qg qr)
+      (P -> Meq (query (Mprod qb qb') qg qr)
                 (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y)))) ->
       (P -> Meq (query qb' (fun y => qg (f y,y)) (fun y => qr (f y,y)))
                 (query qb'' (fun y => qg'' (f y,y)) (fun y => qr (f y,y)))) ->
-      (P -> Meq (query (Mplus qb qb') qg qr)
+      (P -> Meq (query (Mprod qb qb') qg qr)
                 (query (Mmap (fun x => (f x, x)) qb'') qg'' qr)).
   Proof.
-    unfold query, Mplus. intros.
+    unfold query, Mprod. intros.
     setoid_rewrite <- H in H0; clear H. 2: assumption.
     rewrite H0; clear H0.
     unfold Mmap. rw_M.
@@ -532,7 +531,7 @@ Section minimize_lemmas.
       (forall x : T,
           P -> Meq (query qb' (fun y : T' => qg (x, y)) (fun y : T' => qr (x, y)))
                    (query qb'' (fun y : T' => qg'' (x, y)) (fun y : T' => qr (x, y)))) ->
-      (P -> Meq (query (Mplus qb qb') qg qr) (query (Mplus qb qb'') qg'' qr)).
+      (P -> Meq (query (Mprod qb qb') qg qr) (query (Mprod qb qb'') qg'' qr)).
   Proof.
     intros. eapply minimize_keep; eauto.
   Qed.
@@ -619,7 +618,7 @@ Ltac solve_conclusion :=
 Ltac minimize solver :=
   (** TODO: This is sub-optimal **)
   let kont :=
-      (repeat rewrite query_assoc_Mplus) ;
+      (repeat rewrite query_assoc_Mprod) ;
       drop_dup solver
   in
   lazymatch goal with

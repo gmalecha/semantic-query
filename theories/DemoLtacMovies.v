@@ -26,7 +26,7 @@ Section Movies.
 
     Definition title_implies_director : Prop :=
       embedded_dependency
-        (Mplus Movies Movies)
+        (Mprod Movies Movies)
         (fun xy => (fst xy).(title) ?[ eq ] (snd xy).(title))
         (Mret tt)
         (fun xy _ => (fst xy).(director) ?[ eq ] (snd xy).(director)).

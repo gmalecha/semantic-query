@@ -60,6 +60,7 @@ Section chase.
   Qed.
 
 
+(*
 Theorem chase_sound_general {S S' T U}
 (* q  *) (P : M S) (C : S -> bool) (E : S -> T)
 (* ed *) (F : M S') (Gf : S' -> bool) (B : M U) (Gb : S' -> U -> bool) :
@@ -70,7 +71,7 @@ Theorem chase_sound_general {S S' T U}
     (bh : Mimpl (Mmap h P) F)
     (fh : forall x, C x = true -> Gf (h x) = true),
     Meq (query P C E)
-        (query (Mplus P B)
+        (query (Mprod P B)
                (fun ab : (S * U)%type => C (fst ab) && Gb (h (fst ab)) (snd ab))
                (fun ab => E (fst ab))).
 Proof.
@@ -81,10 +82,10 @@ Proof.
     red. intros. specialize (fh a).
     destruct (C a); try reflexivity.
     simpl. rewrite fh; reflexivity. }
-  transitivity (query (Mplus P B)
+  transitivity (query (Mprod P B)
                       (fun ab => C (fst ab) && Gf (h (fst ab)) && Gb (h (fst ab)) (snd ab))
                       (fun ab => E (fst ab))).
-  { red in edc. unfold query, Mplus in *. revert edc.
+  { red in edc. unfold query, Mprod in *. revert edc.
     rw_M. intros.
     transitivity
       (Mbind P (fun x => Mguard (C x) (Mbind (Mbind F (fun z => Mguard (Gf z) (Mret z))) (fun _ => Mret (E x))))).
@@ -95,7 +96,7 @@ Proof.
     { setoid_rewrite H; clear H.
       simpl. rw_M. setoid_rewrite Mguard_and. reflexivity. }
     { clear - bh fh. admit. } }
-  { unfold query, Mplus. rw_M. simpl.
+  { unfold query, Mprod. rw_M. simpl.
     eapply Proper_Mbind_eq; try reflexivity. red; intros.
     eapply Proper_Mbind_eq; try reflexivity. red; intros.
     eapply Proper_Mguard; try reflexivity.
@@ -103,5 +104,6 @@ Proof.
     consider (C a); try reflexivity.
     intros. rewrite H0; auto. }
 Admitted.
+*)
 
 End chase.

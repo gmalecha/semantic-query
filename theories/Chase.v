@@ -135,10 +135,10 @@ Section with_scheme.
       forall db,
         Meq (bindD (scheme:=scheme) (hlist_app a b) db)
             (Mmap (fun xy => @hlist_app _ _ _ _ (fst xy) (snd xy))
-                  (Mplus (bindD a db) (bindD b db))).
+                  (Mprod (bindD a db) (bindD b db))).
   Proof.
     induction a; simpl.
-    { intros. unfold Mplus.
+    { intros. unfold Mprod.
       rw_M. reflexivity. }
     { intros. rewrite IHa; clear IHa.
       rw_M. reflexivity. }

@@ -42,7 +42,7 @@ Section with_tables.
     | Hnil => fun _ => Mret Hnil
     | Hcons n names => fun tbls =>
                              Mmap (fun x => Hcons (fst x) (snd x))
-                                  (Mplus (hlist_get n tbls) (bindD names tbls))
+                                  (Mprod (hlist_get n tbls) (bindD names tbls))
     end.
 
   Fixpoint filterD {ts : list type} (f : filter_type ts)
@@ -149,11 +149,11 @@ Section with_tables.
         setoid_rewrite Mmap_compose.
         simpl.
         eapply Proper_Mimpl_Mimpl. red.
-        eapply (Mmap_Mplus_L M (hlist_get f tbl_data) (bindD b2 tbl_data) (fun x => x)).
+        eapply (Mmap_Mprod_L M (hlist_get f tbl_data) (bindD b2 tbl_data) (fun x => x)).
         reflexivity.
         rewrite Mmap_id. reflexivity. }
       { setoid_rewrite Mmap_compose. simpl.
-        setoid_rewrite Mmap_Mplus_R. eauto. } }
+        setoid_rewrite Mmap_Mprod_R. eauto. } }
   Qed.
 
   Definition types_homomorphism_rest {a b c} (x : types_homomorphism (a :: b) c)
@@ -249,7 +249,7 @@ Section with_tables.
             (hlist_get (hlist_get m b2) tbl_data).
   Proof.
     induction m; rewrite (hlist_eta b2); simpl.
-    { unfold Mplus. rw_M. simpl.
+    { unfold Mprod. rw_M. simpl.
       rewrite Mbind_perm. rw_M.
       eapply Mbind_ignore. }
     { rewrite <- (IHm (hlist_tl b2)); clear IHm.
@@ -275,7 +275,7 @@ Section with_tables.
       specialize (@IHb1 _ b2 tbl_data (types_homomorphism_rest h)).
       simpl.
       rewrite <- IHb1; clear IHb1.
-      { setoid_rewrite Mplus_Mmap_L.
+      { setoid_rewrite Mprod_Mmap_L.
         setoid_rewrite Mmap_compose. simpl.
         unfold Mmap. rw_M.
         red in X.

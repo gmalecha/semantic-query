@@ -180,6 +180,57 @@ Proof.
    eapply In_cross. do 2 eexists; split; eauto.
 Qed.
 
+Theorem FSet_chaseable
+: forall (S S' T U : Type) (P : FSet S) (C : S -> bool)
+     (E : S -> T) (F : FSet S') (Gf : S' -> bool) (B : FSet U)
+     (Gb : S' -> U -> bool),
+   FSet_subset
+     (FSet_cross F
+        (fun x : S' => if Gf x then FSet_singleton x else FSet_empty))
+     (FSet_cross
+        (FSet_cross F
+           (fun x : S' => FSet_cross B (fun y : U => FSet_singleton (x, y))))
+        (fun x : S' * U =>
+         if Gf (fst x) && Gb (fst x) (snd x)
+         then FSet_singleton (fst x)
+         else FSet_empty)) /\
+   FSet_subset
+     (FSet_cross
+        (FSet_cross F
+           (fun x : S' => FSet_cross B (fun y : U => FSet_singleton (x, y))))
+        (fun x : S' * U =>
+         if Gf (fst x) && Gb (fst x) (snd x)
+         then FSet_singleton (fst x)
+         else FSet_empty))
+     (FSet_cross F
+        (fun x : S' => if Gf x then FSet_singleton x else FSet_empty)) ->
+   forall h : S -> S',
+   FSet_subset (FSet_cross P (fun x : S => FSet_singleton (h x))) F ->
+   (forall x : S, C x = true -> Gf (h x) = true) ->
+   FSet_subset
+     (FSet_cross P
+        (fun x : S => if C x then FSet_singleton (E x) else FSet_empty))
+     (FSet_cross
+        (FSet_cross P
+           (fun x : S => FSet_cross B (fun y : U => FSet_singleton (x, y))))
+        (fun x : S * U =>
+         if C (fst x) && Gb (h (fst x)) (snd x)
+         then FSet_singleton (E (fst x))
+         else FSet_empty)) /\
+   FSet_subset
+     (FSet_cross
+        (FSet_cross P
+           (fun x : S => FSet_cross B (fun y : U => FSet_singleton (x, y))))
+        (fun x : S * U =>
+         if C (fst x) && Gb (h (fst x)) (snd x)
+         then FSet_singleton (E (fst x))
+         else FSet_empty))
+     (FSet_cross P
+        (fun x : S => if C x then FSet_singleton (E x) else FSet_empty)).
+Proof.
+Admitted.
+
+
 Instance DataModel_FSet : DataModel FSet :=
 { Mret := @FSet_singleton
 ; Mzero := @FSet_empty
@@ -189,5 +240,5 @@ Instance DataModel_FSet : DataModel FSet :=
 }.
 all: abstract eauto using FSet_subset_diag, FSet_subset_empty, FSet_subset_ignore,
      FSet_subset_cross_singleton, FSet_subset_singleton,
-     cross_assoc, FSet_subset_cross_empty, FSet_subset_cross_perm.
+     cross_assoc, FSet_subset_cross_empty, FSet_subset_cross_perm, FSet_chaseable.
 Defined.
