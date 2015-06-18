@@ -358,13 +358,6 @@ Section with_tables.
     rewrite IHm. reflexivity.
   Qed.
 
-  Lemma Mguard_impl : forall {T} (a b : bool) (m1 m2 : M T),
-      Bool.leb a b ->
-      (a = true -> Mimpl m1 m2) ->
-      Mimpl (Mguard a m1)
-            (Mguard b m2).
-  Proof. Admitted.
-
   Lemma homomorphism_subset ts
     : forall q1 q2,
       @query_homomorphism ts q2 q1 ->

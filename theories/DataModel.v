@@ -312,6 +312,18 @@ Section extras.
     destruct y; auto. reflexivity.
   Qed.
 
+  Lemma Mguard_impl : forall {T} (a b : bool) (m1 m2 : M T),
+      Bool.leb a b ->
+      (a = true -> Mimpl m1 m2) ->
+      Mimpl (Mguard a m1)
+            (Mguard b m2).
+  Proof.
+    intros. red in H.
+    destruct a; simpl.
+    { subst. apply H0. reflexivity. }
+    { apply Mimpl_Mzero. }
+  Qed.
+
 End extras.
 
 Arguments Mmap {M DM T U} _ _ : rename.

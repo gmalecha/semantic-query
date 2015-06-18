@@ -21,11 +21,11 @@ Section with_schema.
     match bt in hlist _ ts return list (member t ts) with
     | Hnil => nil
     | @Hcons _ _ l ls m' bt' =>
-      match HomomorphismSearch.member_eq' m' m with
-      | Some (@exist _ _ pf _) => match eq_sym pf in _ = t return member t (l :: ls) with
-                             | eq_refl => @MZ _ l ls
-                             end :: nil
-      | None => nil
+      match type_dec l t with
+      | left pf => match pf in _ = X return member X _ with
+                   | eq_refl => @MZ _ l ls
+                   end :: nil
+      | right _ => nil
       end ++ List.map (@MN _ _ l ls) (@find_candidates t m _ bt')
     end.
 

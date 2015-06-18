@@ -156,97 +156,6 @@ Section with_scheme.
     destruct (exprD a y); reflexivity.
   Qed.
 
-(*
-  Instance Proper_map {T U : Type} :
-    Proper ((eq ==> eq) ==> eq ==> eq) (@map T U).
-  Proof.
-    repeat red. intros.
-    subst. eapply map_ext. eauto.
-  Qed.
-
-  Instance Proper_filter {T : Type} :
-    Proper ((eq ==> eq) ==> eq ==> eq) (@List.filter T).
-  Proof.
-    repeat red. intros.
-    subst. induction y0; simpl; auto.
-    rewrite IHy0. erewrite H; reflexivity.
-  Qed.
-
-  Lemma list_set_subset_nil : forall {T} (c : list T),
-      list_set_subset nil c <-> True.
-  Proof.
-    unfold list_set_subset; split; auto.
-    inversion 2.
-  Qed.
-
-  Lemma list_set_subset_cons : forall {T} a b (c : list T),
-      list_set_subset (a :: b) c <-> In a c /\ list_set_subset b c.
-  Proof.
-    unfold list_set_subset. simpl; intros.
-    split.
-    { intros. split; intros; apply H; eauto. }
-    { intros. destruct H0. subst. tauto. firstorder. }
-  Qed.
-
-  Lemma list_set_subset_app : forall {T} (b c a : list T),
-      list_set_subset (a ++ b) c <->
-      list_set_subset a c /\ list_set_subset b c.
-  Proof.
-    induction a; simpl; intros.
-    { rewrite list_set_subset_nil.
-      tauto. }
-    { repeat rewrite list_set_subset_cons. rewrite IHa.
-      tauto. }
-  Qed.
-
-  Instance Transitive_list_set_subst {T}
-    : Transitive (@list_set_subset T).
-  Proof.
-    red. unfold list_set_subset. firstorder.
-  Qed.
-
-  Instance Reflexive_list_set_subst {T}
-    : Reflexive (@list_set_subset T).
-  Proof.
-    red. unfold list_set_subset. firstorder.
-  Qed.
-
-  Instance Proper_cross {T U V : Type} :
-    Proper ((eq ==> eq ==> eq) ==> list_set_subset ==> list_set_subset ==> list_set_subset)
-           (@cross T U V).
-  Proof.
-    do 4 red. intros.
-    revert H0. revert y0. revert x0.
-    induction x0; simpl.
-    { unfold list_set_subset. simpl. tauto. }
-    { intros.
-      rewrite list_set_subset_cons in H0.
-      rewrite list_set_subset_app.
-      split.
-      { red.
-        setoid_rewrite in_map_iff.
-        intros.
-        destruct H2 as [ ? [ ? ? ] ].
-        subst.
-        eapply In_cross.
-        destruct H0.
-        do 2 eexists; split; eauto.
-        split; eauto. eapply H; reflexivity. }
-      { eapply IHx0. tauto. } }
-  Qed.
-
-  Lemma filter_and : forall {T} (f g : T -> bool) ls,
-      List.filter (fun x => f x && g x) ls =
-      List.filter f (List.filter g ls).
-  Proof.
-    induction ls; simpl; auto.
-    rewrite IHls; clear IHls.
-    destruct (g a); simpl.
-    { rewrite andb_true_r. reflexivity. }
-    { rewrite andb_false_r. reflexivity. }
-  Qed.
-*)
-
   Lemma hlist_get_member_weaken_app
     : forall {T} F (X Y : list T) t (m : member t Y) y,
       hlist_get (F:=F) (member_weaken_app X m) y =
@@ -290,104 +199,6 @@ Section with_scheme.
     rewrite IHf.
     erewrite expr_weaken_app; reflexivity.
   Qed.
-
-(*
-  Lemma filter_perm : forall {T} (f g : T -> bool) ls,
-      List.filter f (List.filter g ls) = List.filter g (List.filter f ls).
-  Proof.
-    induction ls; simpl; intros; eauto.
-    destruct (g a) eqn:Hga; destruct (f a) eqn:Hfa; simpl;
-    try rewrite Hga; try rewrite Hfa; rewrite IHls; reflexivity.
-  Qed.
-
-  Lemma filter_app : forall {T} (f : T -> bool) ls' ls,
-      List.filter f (ls ++ ls') = List.filter f ls ++ List.filter f ls'.
-  Proof.
-    induction ls; simpl; intros; eauto.
-    destruct (f a); rewrite IHls; reflexivity.
-  Qed.
-
-  Lemma filter_cross_distr
-    : forall {T U V} (join : T -> U -> V) f f' g',
-      (forall a b, f (join a b) = f' a && g' b) ->
-      forall a b,
-        List.filter f (cross join a b) =
-        cross join (List.filter f' a) (List.filter g' b).
-  Proof.
-    induction a; simpl; intros; auto.
-    rewrite filter_app.
-    rewrite IHa; clear IHa.
-    destruct (f' a) eqn:Hf'a.
-    { simpl. f_equal.
-      induction b; simpl; auto.
-      rewrite H. rewrite Hf'a. simpl.
-      rewrite IHb.
-      destruct (g' a1) eqn:Hg'a1; simpl.
-      { reflexivity. }
-      { auto. } }
-    { rewrite <- app_nil_l.
-      f_equal.
-      induction b; simpl; auto.
-      rewrite H. rewrite Hf'a. simpl. auto. }
-  Qed.
-  Arguments filter_cross_distr {T U V} join f f' g' _ a b.
-
-  Lemma filter_true : forall {T} (f : T -> bool),
-      (forall x, f x = true) ->
-      forall ls, List.filter f ls = ls.
-  Proof.
-    induction ls; simpl; intros; auto.
-    rewrite IHls. rewrite H. reflexivity.
-  Qed.
-
-  Lemma filter_cross_distr_1
-    : forall {T U V} (join : T -> U -> V) f f',
-      (forall a b, f (join a b) = f' a) ->
-      forall a b,
-        List.filter f (cross join a b) =
-        cross join (List.filter f' a) b.
-  Proof.
-    intros.
-    rewrite (filter_cross_distr join f f' (fun _ => true)).
-    { rewrite (filter_true (fun _ => true)) by reflexivity.
-      auto. }
-    { intros. rewrite H. rewrite andb_true_r. auto. }
-  Qed.
-
-  Lemma filter_cross_distr_2
-    : forall {T U V} (join : T -> U -> V) f g',
-      (forall a b, f (join a b) = g' b) ->
-      forall a b,
-        List.filter f (cross join a b) =
-        cross join a (List.filter g' b).
-  Proof.
-    intros.
-    rewrite (filter_cross_distr join f (fun _ => true) g').
-    { rewrite (filter_true (fun _ => true)) by reflexivity.
-      auto. }
-    { intros. rewrite H. auto. }
-  Qed.
-*)
-
-  (** TODO: Move **)
-  SearchAbout bindD binds_homomorphism.
-(*
-  Lemma In_follow_types_homomorphism
-    : forall vs vs' (vm : types_homomorphism vs vs') to from
-             (bh : binds_homomorphism (scheme:=scheme) vm to from),
-      forall db,
-      forall x, In x (bindD from db) ->
-                In (follow_types_homomorphism vm x) (bindD to db).
-  Proof.
-    induction to; simpl.
-    { auto. }
-    { intros.
-      eapply In_cross.
-      generalize (bh _ (MZ _ _)). simpl; intros; subst.
-      do 2 eexists; split; [ | split ]; eauto using In_bindD_hlist_get.
-      eapply (IHto _ _ (binds_homomorphism_rest bh) db _ H). }
-  Qed.
-*)
 
   (** TODO: duplicated! **)
   Lemma related_follow_types_homomorphism
@@ -511,73 +322,85 @@ Section with_scheme.
       embedded_dependencyD c db ->
       Meq (queryD q db) (queryD (@chase_step t q c h) db).
   Proof.
-(*
-    destruct q; destruct c.
-    unfold ed_front. simpl. unfold chase_step. simpl.
-    unfold embedded_dependencyD, queryD, tableauxD; simpl.
     intros.
-    rewrite bindD_app.
-    rewrite filterD_app.
-    rewrite filter_and.
-    rewrite filterD_weaken_app.
-    rewrite filter_perm.
-    rewrite filter_cross_distr_1
-       with (f':=filterD tabl.(filter))
-         by (intros; rewrite hlist_split_hlist_app; reflexivity).
-    (** TODO: is it possible to use homomorphism_subset here? *)
-    (** equational reasoning seems to no longer be possible? **)
-    { split.
-      { red. revert H.
-        repeat first [ setoid_rewrite in_map_iff
-                     | setoid_rewrite filter_In
-                     | setoid_rewrite In_cross ].
-        intros; forward_reason.
-        destruct h. simpl in *.
-        specialize (H (follow_types_homomorphism vars_mor x0)).
-        destruct H.
-        { split; eauto using In_follow_types_homomorphism.
-          erewrite related_filterD_subst_test.
-          2: instantiate (1:=x0). 2: instantiate (1:=vars_mor).
-          eapply filterOk. assumption.
-          eapply related_follow_types_homomorphism. }
-        forward_reason.
-        exists (hlist_app x0 x2). subst.
-        split.
-        { unfold retD. rewrite hlist_map_compose.
-          eapply hlist_map_ext. intros.
-          erewrite expr_weaken_app; [ | reflexivity ].
-          rewrite hlist_split_hlist_app. reflexivity. }
-        split.
-        { do 2 eexists; split; split; eauto. }
-        { red in filterOk.
-          unfold filter_subst.
-          rewrite filterD_is_forallb.
-          rewrite forallb_map.
-          rewrite filterD_is_forallb in H3.
-          erewrite Proper_forallb; try eauto.
-          red. clear. intros; subst.
-          erewrite related_exprD_subst_expr; eauto.
-          { (** this should be a lemma *)
-            unfold related.
-            intros. do 2 rewrite hlist_get_hlist_app.
-            rewrite member_app_case_member_map_app.
-            destruct (member_app_case front_types back_types m); auto.
-            eapply related_follow_types_homomorphism. } } }
-      { red. revert H.
-        repeat first [ setoid_rewrite in_map_iff
-                     | setoid_rewrite filter_In
-                     | setoid_rewrite In_cross ].
-        intros; forward_reason.
-        subst.
-        destruct h; simpl in *.
-        exists x1. split; auto.
-        unfold retD.
-        rewrite hlist_map_compose.
-        eapply hlist_map_ext.
-        intros. erewrite expr_weaken_app; [ | reflexivity ].
-        rewrite hlist_split_hlist_app. reflexivity. } }
-*)
-  Admitted.
+    destruct c.
+    assert (@DataModel.embedded_dependency _ DM _ _
+                                               (bindD front_binds db) (filterD front_filter)
+              (bindD back_binds db)
+              (fun x y => filterD back_filter (hlist_app x y))).
+    { clear - H. red in H; simpl in *.
+      unfold ed_front, ed_back, tableauxD in H. simpl in H.
+      red. unfold DataModel.query.
+      etransitivity; [ eassumption | ].
+      rewrite bindD_app. rw_M.
+      repeat (eapply Proper_Mbind_eq; [ reflexivity | red; intros ]).
+      simpl.
+      rewrite hlist_split_hlist_app. simpl.
+      erewrite filterD_app by reflexivity.
+      eapply Proper_Mguard_eq; try reflexivity.
+      f_equal.
+      erewrite <- related_filterD_subst_test.
+      reflexivity.
+      red.
+      clear.
+      induction m.
+      { simpl. rewrite (hlist_eta a). reflexivity. }
+      { simpl. rewrite IHm.
+        f_equal.
+        rewrite (hlist_eta a). reflexivity. } }
+    clear H.
+    unfold ed_front in h. simpl in h.
+    destruct h; simpl in *.
+    unfold queryD, tableauxD, Mmap. rw_M.
+    etransitivity.
+    { eapply chaseable. eassumption.
+      instantiate (1:= follow_types_homomorphism vars_mor).
+      eapply bindD_subset; eauto.
+      intros.
+      red in filterOk.
+      eapply filterOk in H.
+      rewrite <- H.
+      eapply related_filterD_subst_test.
+      eapply related_follow_types_homomorphism. }
+    { simpl. unfold DataModel.query.
+      rewrite bindD_app.
+      rw_M.
+      repeat (eapply Proper_Mbind_eq; [ reflexivity | red; intros ]).
+      simpl.
+      eapply Proper_Mguard.
+      { erewrite filterD_app; try reflexivity.
+        erewrite filterD_weaken_app; [ | reflexivity ].
+        rewrite hlist_split_hlist_app. simpl.
+        f_equal.
+        unfold filter_subst.
+        eapply related_filterD_subst_test.
+        clear. induction front_types.
+        { simpl in *.
+          unfold member_map_app. simpl.
+          red. clear. induction a.
+          { simpl. auto. }
+          { simpl. eauto. } }
+        { red.
+          specialize (IHfront_types (types_homomorphism_rest vars_mor)).
+          red in IHfront_types.
+          simpl.
+          intros.
+          destruct (member_case m).
+          { destruct H. subst. simpl.
+            unfold member_map_app. simpl.
+            rewrite hlist_get_member_weaken_app.
+            rewrite hlist_split_hlist_app. reflexivity. }
+          { destruct H. subst. simpl.
+            rewrite IHfront_types.
+            unfold member_map_app. simpl.
+            destruct (member_app_case front_types back_types x); auto. } } }
+      { eapply Proper_Mret_eq.
+        induction (ret q); simpl; auto.
+        { f_equal.
+          { erewrite expr_weaken_app by reflexivity.
+            rewrite hlist_split_hlist_app. reflexivity. }
+          { eauto. } } } }
+  Qed.
 
   Variable check_entailment
   : forall (ts : list type) (ps : filter_type ts) (g : guard_type ts),
