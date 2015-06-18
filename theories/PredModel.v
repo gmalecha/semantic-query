@@ -7,7 +7,7 @@ Require Import SemanticQuery.DataModel.
 Definition Pred (T: Type) : Type := T -> Prop.
 
 Lemma Pred_chaseable
-: forall (S S' T U : Type) (P : Pred S) (C : S -> bool) 
+: forall (S S' T U : Type) (P : Pred S) (C : S -> bool)
      (E : S -> T) (F : Pred S') (Gf : S' -> bool) (B : Pred U)
      (Gb : S' -> U -> bool),
    (forall x : S',
@@ -46,7 +46,35 @@ Lemma Pred_chaseable
     exists y : S,
       P y /\ (if C y then fun y0 : T => E y = y0 else fun _ : T => False) x).
 Proof.
-Admitted.
+  intros.
+  split; intros.
+  { forward_reason; simpl in *.
+    consider (C x0); intros; try contradiction.
+    subst.
+    specialize (H (h x0)).
+    destruct H.
+    { eexists. split.
+      { eapply H0. eexists; split; eauto. }
+      { rewrite H1; eauto. } }
+    forward_reason; subst; simpl in *.
+    eexists. split; eauto.
+    simpl.
+    consider (Gf x1 && Gb x1 x2); intros; try contradiction.
+    subst.
+    eapply andb_true_iff in H5. destruct H5.
+    rewrite H3. rewrite H7. reflexivity. }
+  { forward_reason; simpl in *.
+    consider (C (fst x0) && Gb (h (fst x0)) (snd x0)); intros; try contradiction.
+    subst. simpl in *.
+    eapply andb_true_iff in H3. destruct H3.
+    specialize (H6 (h x1)). destruct H6.
+    { eexists. split.
+      { eexists; split; eauto. }
+      simpl. rewrite H5. rewrite H1; auto. reflexivity. }
+    { forward_reason.
+      eexists; split; eauto.
+      rewrite H3. reflexivity. } }
+Defined.
 
 Global Instance DataModel_Pred : DataModel Pred :=
 { Mret := fun _ x y => x = y
