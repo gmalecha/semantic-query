@@ -135,7 +135,7 @@ Section normalize_proofs.
     : forall {T U V W : Type} (qb : M T) qg x (y : _ -> _ -> M V),
       Meq (Mbind (query qb qg (fun x => x))
                  (fun val : T => Mbind (x val) (y val)))
-          (Mbind (query (Mdplus qb x) (fun x => qg (fst x)) (fun x => (fst x, snd x)))
+          (Mbind (query (Mdprod qb x) (fun x => qg (fst x)) (fun x => (fst x, snd x)))
                  (fun val : T * W => y (fst val) (snd val))).
   Proof.
     unfold query, Mprod; intros. rw_M.
@@ -148,7 +148,7 @@ Section normalize_proofs.
     : forall {T U V W : Type} (qb : M T) qg (qr : T -> U) x (y : _ -> _ -> M V),
       Meq (Mbind (query qb qg qr)
                  (fun val : U => Mbind (x val) (y val)))
-          (Mbind (query (Mdplus qb (fun y => x (qr y))) (fun x => qg (fst x)) (fun x => (qr (fst x), snd x)))
+          (Mbind (query (Mdprod qb (fun y => x (qr y))) (fun x => qg (fst x)) (fun x => (qr (fst x), snd x)))
                  (fun val : U * W => y (fst val) (snd val))).
   Proof.
     unfold query, Mprod; intros. rw_M.

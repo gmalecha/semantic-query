@@ -81,7 +81,7 @@ Section extras.
   Variable M : Type -> Type.
   Context {DM : DataModel M}.
 
-  Definition Mdplus {T U : Type} (x : M T) (y : T -> M U) : M (T * U) :=
+  Definition Mdprod {T U : Type} (x : M T) (y : T -> M U) : M (T * U) :=
     Mbind x (fun x => Mbind (y x) (fun y => Mret (x,y))).
 
   Definition Mprod {T U : Type} (x : M T) (y : M U) : M (T * U) :=
@@ -315,7 +315,7 @@ Section extras.
 End extras.
 
 Arguments Mmap {M DM T U} _ _ : rename.
-Arguments Mdplus {M DM T U} _ _.
+Arguments Mdprod {M DM T U} _ _.
 Arguments Mprod {M DM T U} _ _.
 Arguments query {M DM S T} _ _ _.
 Arguments embedded_dependency {M DM S S'} _ _ _ _.
