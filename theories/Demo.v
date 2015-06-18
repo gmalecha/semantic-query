@@ -80,7 +80,7 @@ Module Movies.
 
   Example minimized_ex1 : RecordTableaux.query scheme (String :: String :: nil) :=
     Eval vm_compute
-    in minimize (@check_entails) universal_ex1.
+    in minimize (@check_entails) 10 (title_implies_director :: nil) universal_ex1.
 
 End Movies.
 
@@ -142,6 +142,6 @@ Module Indexing.
 
   Example minimized_ex1 : RecordTableaux.query scheme (String :: nil) :=
     Eval vm_compute
-    in minimize (@check_entails) universal_ex1.
+    in minimize (@check_entails) 100 (children_are_people :: children_lt_21_person :: nil) universal_ex1.
 
 End Indexing.

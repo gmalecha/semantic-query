@@ -38,6 +38,9 @@ Section with_schema.
                  end
     end.
 
+  Variable chase_fuel : nat.
+  Variable eds : list (embedded_dependency scheme).
+
   Fixpoint remove {t} (ts ts' : list type)
            (binds : binds_type scheme ts) (binds' : binds_type scheme ts')
            {struct binds'}
@@ -72,11 +75,14 @@ Section with_schema.
           let fs' := filter_subst (esubst Bool) fs in
           let rt' := hlist_map esubst rt in
           let q  := {| tabl := {| binds := hlist_app binds (Hcons m binds'')
-                                  ; filter := fs |}
-                       ; ret  := rt |} in
+                                ; filter := fs |}
+                     ; ret  := rt |} in
           let q' := {| tabl := {| binds := hlist_app binds binds''
-                                  ; filter := fs' |}
-                       ; ret  := rt' |} in
+                                ; filter := fs' |}
+                     ; ret  := rt' |} in
+          let q' :=
+              get_status (chase check_entailment chase_fuel eds q')
+          in
           if query_equiv check_entailment q q' then
             Some (fs', rt')
           else
