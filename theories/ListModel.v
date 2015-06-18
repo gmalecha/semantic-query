@@ -180,6 +180,14 @@ Proof.
    eapply In_cross. do 2 eexists; split; eauto.
 Qed.
 
+Lemma In_singleton : forall {T} (x y : T),
+    In x (FSet_singleton y) <-> x = y.
+Proof.
+  split; intros.
+  { destruct H; try contradiction. auto. }
+  { subst. left; reflexivity. }
+Qed.
+
 Theorem FSet_chaseable
 : forall (S S' T U : Type) (P : FSet S) (C : S -> bool)
      (E : S -> T) (F : FSet S') (Gf : S' -> bool) (B : FSet U)
@@ -228,8 +236,62 @@ Theorem FSet_chaseable
      (FSet_cross P
         (fun x : S => if C x then FSet_singleton (E x) else FSet_empty)).
 Proof.
-Admitted.
-
+  intros. destruct H.
+  split.
+  { clear H2.
+    unfold FSet_subset in *.
+    intros.
+    eapply In_cross in H2. forward_reason. subst.
+    consider (C x0); intros.
+    { unfold FSet_singleton in H4. simpl in H4.
+      destruct H4; try contradiction; subst.
+      eapply In_cross.
+      setoid_rewrite In_cross.
+      specialize (H (h x0)).
+      repeat setoid_rewrite In_cross in H.
+      destruct H.
+      { setoid_rewrite In_cross in H0.
+        specialize (H0 (h x0)).
+        do 2 eexists. split.
+        { eapply H0. do 2 eexists; eauto. split; eauto.
+          split; eauto. left. reflexivity. }
+        { split; eauto.
+          rewrite H1; eauto. left; reflexivity. } }
+      { forward_reason. subst. subst.
+        destruct H8; try contradiction. subst. simpl in *.
+        consider (Gf x2 && Gb x2 x4); intros.
+        { destruct H5; try contradiction. subst.
+          setoid_rewrite In_cross.
+          setoid_rewrite In_singleton.
+          repeat match goal with
+                 | |- exists x, _ => eexists
+                 | |- _ /\ _ => split
+                 end; eauto.
+          simpl. rewrite H3.
+          eapply andb_true_iff in H4.
+          destruct H4. rewrite H5. simpl. left; reflexivity. }
+        { destruct H5. } } }
+    { inversion H4. } }
+  { clear H.
+    red. intros. red in H2.
+    repeat setoid_rewrite In_cross in H2.
+    repeat setoid_rewrite In_cross in H.
+    repeat setoid_rewrite In_cross.
+    repeat setoid_rewrite In_singleton in H2.
+    repeat setoid_rewrite In_singleton in H.
+    repeat setoid_rewrite In_singleton.
+    forward_reason.
+    subst. subst. simpl in *.
+    consider (C x2 && Gb (h x2) x4); intros.
+    { setoid_rewrite In_singleton in H4. subst.
+      eapply andb_true_iff in H3. destruct H3.
+      repeat match goal with
+             | |- exists x, _ => eexists
+             | |- _ /\ _ => split
+             end; eauto.
+      rewrite H3. apply In_singleton. reflexivity. }
+    { destruct H4. } }
+Qed.
 
 Instance DataModel_FSet : DataModel FSet :=
 { Mret := @FSet_singleton
@@ -238,7 +300,7 @@ Instance DataModel_FSet : DataModel FSet :=
 ; Mimpl := @FSet_subset
 ; makeM := fun _ x => x
 }.
-all: abstract eauto using FSet_subset_diag, FSet_subset_empty, FSet_subset_ignore,
+all: eauto using FSet_subset_diag, FSet_subset_empty, FSet_subset_ignore,
      FSet_subset_cross_singleton, FSet_subset_singleton,
      cross_assoc, FSet_subset_cross_empty, FSet_subset_cross_perm, FSet_chaseable.
 Defined.
