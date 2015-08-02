@@ -8,7 +8,7 @@
 \usepackage{listings}
 \usepackage{lstcoq}
 \usepackage{comment}
-
+\usepackage{xspace}
 
 \lstset{ %
   numberbychapter=false, %
@@ -46,6 +46,7 @@
 
 \newcommand{\greg}[1]{\textcolor{blue}{GREG: #1}}
 \newcommand{\ltac}[0]{\ensuremath{\mathcal{L}_{\mathrm{tac}}}}
+\newcommand{\relation}[1]{\ensuremath{\mathit{#1}}\xspace}
 
 \begin{document}
 
@@ -66,28 +67,31 @@ Semantic optimization -- the use of data integrity constraints to optimize relat
 \section{Introduction}
 
 {\it Semantic optimization}~\cite{foundations,Deutsch:2006:QRC:1121995.1122010,Popa99anequational} is the 
-use of data integrity constraints such as keys, functional dependencies, inclusions, and join decompositions to optimize relational queries. For example~\cite{foundations}, consider the following contrived query over a relation (set of records) $Movies$ 
+use of data integrity constraints such as keys, functional dependencies, inclusions, and join decompositions to optimize relational queries. For example~\cite{foundations}, consider the following contrived query over a relation (set of records) \relation{Movies} 
 with fields ${\sf title}$, ${\sf director}$, and ${\sf actor}$:
 \begin{eqnarray*}
-& & \FOR (m_1 \IN Movies) \ (m_2 \IN Movies) \\
+& & \FOR (m_1 \IN \relation{Movies}) \ (m_2 \IN \relation{Movies}) \\
  & & \WHERE m_1.{\sf title} = m_2.{\sf title} \\
  & & \RETURN (m_1.{\sf director}, m_2.{\sf actor})
 \end{eqnarray*}        
-This query returns (a set of) tuples $(d,a)$ where $a$ acted in a movie directed by $d
-$.  A naive implementation of this query will require a join.  However, when $Movies$ 
-satisfies the functional dependency ${\sf title} \to {\sf director}$ (meaning that 
-if $({\sf director}: d, {\sf title}: t, {\sf actor}: a)$ and $({\sf director}: d^\prime, {\sf title}: t^\prime, {\sf actor}: a^\prime)$ are $Movies$ records such that $t = t^\prime$, then $d = d^\prime$), this query is equivalent to:
+This query returns (a set of) tuples $(d,a)$ where $a$ acted in a movie directed by $d$.  A na\"ive implementation of this query will require a join.  However, when \relation{Movies} satisfies the functional dependency ${\sf title} \to {\sf director}$ (meaning that 
+if $({\sf director}: d, {\sf title}: t, {\sf actor}: a)$ and $({\sf director}: d^\prime, {\sf title}: t^\prime, {\sf actor}: a^\prime)$ are \relation{Movies} records such that $t = t^\prime$, then $d = d^\prime$), this query is equivalent to:
 \begin{eqnarray*}
-& & \FOR (m \IN Movies) \\
+& & \FOR (m \IN \relation{Movies}) \\
  & & \RETURN (m.{\sf director}, m.{\sf actor})
  \end{eqnarray*}
-which can be evaluated without a join.  (Note that if $Movies$ did not satisfy the functional dependency, the equivalence would not necessarily hold.)  
+which can be evaluated without a join.  (Note that if \relation{Movies} did not satisfy the functional dependency, the equivalence would not necessarily hold.)  
 
-Of course, knowing that the functional dependency holds, a programmer might simply write the optimized query to begin with.  But constraints are not always known at compile time, such as when relations are indexed dynamically.  Moreover, Person are not always the programmers: information-integration systems such as Clio~\cite{haas:clio} automatically generate large numbers of queries.  The significant, potentially order-of-magnitude speed-ups enabled by semantic optimization are well-documented in the literature~\cite{Cheng:1999:ITS:645925.671357}.  
+Of course, knowing that the functional dependency holds, a programmer might simply write the optimized query to begin with.
+However, constraints are not always known at compile time, such as when relations are indexed dynamically.
+In addition, not all queries are written by programmers.
+For example, information-integration systems such as Clio~\cite{haas:clio} automatically generate large numbers of queries that should be optimized.
+In cases such as these, semantic optimization must be performed automatically to achieve the significant, potentially order-of-magnitude speed-ups enabled by semantic optimization are well-documented in the literature~\cite{Cheng:1999:ITS:645925.671357}.
+\greg{This last sentence does not seem to fit with this paragraph}
 
 Although certain RDBMS's such as DB2 can perform limited amounts of semantic optimization~\cite{Cheng:1999:ITS:645925.671357}, RDBMS's are fundamentally limited by the expressiveness of SQL as a constraint specification language: SQL includes keys and foreign keys but constraints such as the functional dependency above are not directly expressible in SQL.  (Technically, functional dependencies can be encoded as {\tt CHECK} constraints, but even {\tt CHECK} constraints cannot capture multi-table constraints such as join decompositions).  In relational database theory, a fragment of first-order logic, the so-called {\it embedded, implicational dependencies} (EDs), are used to capture almost all constraints used in practice, including keys, foreign keys, inclusions, functional dependencies, and join decompositions, and a large body of literature has developed to facilitate reasoning about queries in the presence of EDs~\cite{Popa99anequational}. 
 
-{\bf Contributions and Outline.} In this paper we demonstrate that dependently-typed language-integrated query systems (LINQs~\cite{monad}) that compile to SQL can expose data integrity constraints, in the guise of EDs, as first-class objects to their users, and that they can apply sophisticated semantic optimization techniques before translating user queries into SQL.  In particular, we show, using Coq~\cite{coq:coq} as our ambient language, how to use dependent equality types to represent EDs, and how to use Coq tactics to implement a particular kind of semantic optimization: tableaux minimization, which minimizes the number of joins required by a query.  This paper is divided into two parts: the first part is a tutorial on tableaux minimization, and the second part is a Coq rendering of the first part. The Coq development is available at {\sf github.com/gmalecha/semantic-query}.
+{\bf Contributions and Outline.} In this paper we demonstrate that dependently-typed language-integrated query systems (LINQs~\cite{monad}) that compile to SQL can expose data integrity constraints, in the guise of EDs, as first-class objects to their users. This feature allows them to apply sophisticated semantic optimization techniques before translating user queries into SQL.  In particular, we show, using Coq~\cite{coq:coq} as our ambient language, how to use dependent equality types to represent EDs, and how to use Coq tactics to implement a particular kind of semantic optimization: tableaux minimization, which minimizes the number of joins required by a query.  This paper is divided into two parts: the first part is a tutorial on tableaux minimization, and the second part is a Coq rendering of the first part. The Coq development is available at {\sf github.com/gmalecha/semantic-query}.
 
 {\bf Related Work.} Most theoretical work on language-integrated query systems is done in a simply-typed setting~\cite{tannen:1992:NEQ:645500.655920}.  In practice, however, sophisticated type systems are often used to to facilitate the embedding of a query sublanguage into a general purpose programming language.  For example, labelled row types~\cite{mpj:jones1996a} can be used to embed DBMS records into a programming language, and the Opaleye library for Haskell uses the Arrow type-class to statically enforce the wellformedness of its SQL output~\cite{opaleye}.  Rarer still are dependently-typed embedded query languages: although Coq has been used to prove the correctness of certain database-related languages, data structures, and algorithms~\cite{DBLP:conf/popl/DelawarePGC15}~\cite{Malecha:2010:TVR:1706299.1706329}~\cite{coqdb}, none of this work is concerned with using Coq directly as an embedded query language as we are doing in this paper (i.e., these works use deep embeddings of query languages, whereas we use a shallow embedding).  
 
@@ -95,27 +99,25 @@ Although certain RDBMS's such as DB2 can perform limited amounts of semantic opt
 %For ease of exposition, in the first part of this paper we will assume we are working in a strongly-normalizing typed $\lambda$-calculus with first-class records, such as~\cite{mpj:jones1996a}.
 
 In this paper we will focus on relational {\it conjunctive queries}~\cite{foundations}, and for the first part of this paper the specifics of our query language will not matter.   We will write $(l_1: e_1, \ldots, l_N: e_N)$ to indicate a record with unique labels $l_1, \ldots l_N$ formed from expressions $e_1, \ldots, e_N$, where an expression has the form $v.l$ for a variable $v$ and label $l$.  We will abbreviate (potentially 0-length) vectors of variables $x_1,...,x_N$ as $\overrightarrow{x}$.  We will write $P(\overrightarrow{x})$ to indicate a conjunction of equalities over expressions over variables $\overrightarrow{x}$.  Assumed base relations (often called {\it roots}) will be written in capital letters, such as $\overrightarrow{X}$.  A {\it tableau} has the form:
-\begin{normalsize}
 \begin{eqnarray*}
  & & \FOR \overrightarrow{(x \IN X)} \\
  & & \WHERE P(\overrightarrow{x})
 \end{eqnarray*}
-\end{normalsize}
 The $\overrightarrow{(x \IN X)}$ are called {\it generators}.  A (conjunctive) {\it query} is a pair of a  tableau and a record (``return clause'') $R(\overrightarrow{x})$:
-\begin{normalsize}
 \begin{eqnarray*}
  & & \FOR \overrightarrow{(x \IN X)} \\
 & & \WHERE  P(\overrightarrow{x}) \\ 
  & & \RETURN R(\overrightarrow{x})
 \end{eqnarray*}
-\end{normalsize}
-{\bf Extensions.} We will only consider relational conjunctive queries in this paper, but many extensions to conjunctive queries have been studied in the literature~\cite{foundations}.  Two extensions are particularly important, because many results about semantic optimization, including tableaux minimization, hold for these extensions~\cite{Popa99anequational}:
+
+\paragraph{Extensions}
+We will only consider relational conjunctive queries in this paper, but many extensions to conjunctive queries have been studied in the literature~\cite{foundations}.  Two extensions are particularly important, because many results about semantic optimization, including tableaux minimization, hold for these extensions~\cite{Popa99anequational}:
 \begin{itemize} 
 \item  It is possible to allow generators to be dependent, thereby allowing, for example, nested relations~\cite{Popa99anequational}:
 \begin{normalsize}
-$$ \FOR (g \IN Groups) \ (Person \IN g) \ \ldots $$
+$$ \FOR (g \IN \relation{Groups}) \ (p \IN g) \ \ldots $$
 \end{normalsize}
-\item It is possible to interpret queries in arbitrary {\it monads with zeroes}, for example, the list monad or the bag monad.  However, the  optimization procedure described in this paper is only sound for monads that are commutative and idempotent~\cite{Popa99anequational}:
+\item It is possible to interpret queries in arbitrary {\it monads with zeroes}, for example, the list monad or the bag monad.  However, the  optimization procedure described in this paper is only sound for monads that are both commutative and idempotent~\cite{Popa99anequational}:
 $$
 \FOR (x \IN X)(y \IN Y)  \cong \FOR (y \IN Y) (x \IN X) 
 $$
@@ -124,7 +126,7 @@ $$
 $$
 Such monads arise, for example, as power monads on topoi~\cite{BW}.  It is also possible to interpret queries in {\it monad algebras}~\cite{755736}.  For example, it is possible to write a query to find the largest element of a set: 
 \begin{normalsize}
-$$ \FOR (x \IN SomeSetOfInts) \ {\tt max} \ x $$
+$$ \FOR (x \IN \relation{SetOfInts}) \ {\tt max} \ x $$
 \end{normalsize}
 
 \end{itemize}
@@ -132,27 +134,24 @@ $$ \FOR (x \IN SomeSetOfInts) \ {\tt max} \ x $$
 \section{Embedded Dependencies}
 
 An {\it embedded dependency (ED)}~\cite{foundations} is a pair of tableaux, where one tableau is universally quantified, and the other existentially:
-\begin{normalsize}
 \begin{eqnarray*}
 C & := & \FORALL \overrightarrow{(x \IN X)} \\
  & & \WHERE P(\overrightarrow{x}) \\
  & & \EXISTS \overrightarrow{(y \IN Y)} \\
  & & \WHERE B(\overrightarrow{x}, \overrightarrow{y})
 \end{eqnarray*}
-\end{normalsize}
-{\bf Example.} The functional dependency from our example from the introduction is written (the \EXISTS clause is empty):
-\begin{normalsize}
+
+\paragraph{Example}
+The functional dependency from our example from the introduction is written (the \EXISTS clause is empty):
 \begin{eqnarray*}
-& & \FORALL (x \IN Movies) \ (y \IN Movies) \\
+& & \FORALL (x \IN \relation{Movies}) \ (y \IN \relation{Movies}) \\
 & & \WHERE x.{\sf title} = y.{\sf title}, \\ 
 & & \EXISTS \\
 & & \WHERE x.{\sf director} = y.{\sf director}
 \end{eqnarray*}
-\end{normalsize}
 An ED $C$ gives rise to two conjunctive queries, the {\it front} and {\it back} of $C$.  We write $\mathcal{L}
 (\overrightarrow{x})$ to indicate a record capturing the variables $\overrightarrow{x}
 $; e.g., $({\sf x_1}: x_1, \ldots ,{\sf x_N}: x_N)$.  %The front of an ED is:
-\begin{normalsize}
 \begin{eqnarray*}
 front(C)& := & \FOR \overrightarrow{(x \IN X)} \\ 
 & & \WHERE P(\overrightarrow{x}) \\
@@ -167,27 +166,40 @@ back(C) & := & \FOR \overrightarrow{(x \IN X)} \ \overrightarrow{(y \IN Y)} \\
 & & \WHERE P(\overrightarrow{x}) \wedge B(\overrightarrow{x}, \overrightarrow{y}) \\
 & & \RETURN \mathcal{L}(\overrightarrow{x})
 \end{eqnarray*}
-\end{normalsize}
+
 It is easy to establish~\cite{Popa99anequational} that 
-$$\forall I, \ \ \ \ \ I \models C \ \ \ \ \textnormal{iff} \ \ \ \  front(C)(I) = back(C)(I)$$
+\[
+\forall I, \quad I \models C \quad \textnormal{iff} \quad front(C)(I) = back(C)(I)
+\]
+Where $I \models C$ should be read ``contraint $C$ holds on instance $I$.''
 In fact, in the second half of this paper, we will use a dependent equality type corresponding to the above equation as a type of proofs that an ED holds in a particular instance.
 
-{\bf Notation.}  When two queries $Q_1$ and $Q_2$ give the same result on every instance, we write $Q_1 \cong Q_2$.  When $Q_1$ and $Q_2$ give the same result on every instance satisfying some set of EDs $C$, we write $C \vdash Q_1 \cong Q_2$.
+\textbf{Notation.}  When two queries $Q_1$ and $Q_2$ give the same result on every instance, we write $Q_1 \cong Q_2$.  When $Q_1$ and $Q_2$ give the same result on every instance satisfying some set of EDs $C$, we write $C \vdash Q_1 \cong Q_2$.
 
 \section{Homomorphisms}
 
 A {\it homomorphism} between queries, $h : Q_1 \to Q_2$ 
-\begin{normalsize}
+%% \begin{eqnarray*}
+%% Q_1 & := & \FOR \overrightarrow{(v_1 \IN V_1)} \\
+%%           & & \WHERE P_1(\overrightarrow{v_1}) \\
+%%           & & \RETURN R_1(\overrightarrow{v_1}) \\
+%% \to_h & & \\        
+%% Q_2 & := & \FOR \overrightarrow{(v_2 \IN V_2)} \\
+%%           & & \WHERE P_2(\overrightarrow{v_2}) \\
+%%           & & \RETURN R_2(\overrightarrow{v_2})
+%% \end{eqnarray*}
 \begin{eqnarray*}
-Q_1 & := & \FOR \overrightarrow{(v_1 \IN V_1)} \\
-          & & \WHERE P_1(\overrightarrow{v_1}) \\
-          & & \RETURN R_1(\overrightarrow{v_1}) \\
-\to_h & & \\        
-Q_2 & := & \FOR \overrightarrow{(v_2 \IN V_2)} \\
-          & & \WHERE P_2(\overrightarrow{v_2}) \\
-          & & \RETURN R_2(\overrightarrow{v_2})
+\begin{array}{l}
+\FOR \overrightarrow{(v_1 \IN V_1)} \\
+\WHERE P_1(\overrightarrow{v_1}) \\
+\RETURN R_1(\overrightarrow{v_1})
+\end{array} & \to_h &
+\begin{array}{l}
+\FOR \overrightarrow{(v_2 \IN V_2)} \\
+\WHERE P_2(\overrightarrow{v_2}) \\
+\RETURN R_2(\overrightarrow{v_2})
+\end{array}
 \end{eqnarray*}
-\end{normalsize}
 is a substitution mapping the $\FOR$-bound variables of $Q_1$ (namely, $
 \overrightarrow{v_1}$) to the $\FOR$-bound variables of $Q_2$ (namely, $
 \overrightarrow{v_2}$) that preserves the structure of $Q_1$ in the sense that
@@ -203,42 +215,36 @@ A homomorphism of tableaux is defined the same way, except that the condition ab
 
 {\bf Notation.} We write $Q_1 \leftrightarrow Q_2$ to mean that there exists homomorphisms $Q_1 \to Q_2$ and $Q_2 \to Q_1$ and we say that $Q_1$ and $Q_2$ are {\it homomorphically equivalent}.  The existence of a homomorphism $Q_1 \to Q_2$ implies that for every $I$, $Q_2(I) \subseteq Q_1(I)$, and vice versa~\cite{foundations}.  Hence, by bi-directional subset containment, $Q_1 \cong Q_2$ iff $Q_1 \leftrightarrow Q_2$.
 
-{\bf Example.} Consider our $Movies$ query 
+{\bf Example.} Consider our \relation{Movies} query 
 %When queries are {\it path-conjunctive}---that is, when $P_1$, $P_2$ are conjunctions of equalities between paths of the form $v.l_1,.\ldots l_n, $ and  $R_1$ and $R_2$ are records built from paths, as we are assuming in this paper, finding homomorphisms is NP-hard.  Moreover, in this case there are practical, sound heuristics~\cite{Deutsch:2006:QRC:1121995.1122010} based on pruning the search space of substitutions to remove candidates that are ``obviously wrong'' based on a partial variable assignment. 
-\begin{normalsize}
 \begin{eqnarray*}
-Q_1 & := & \FOR (m_1 \IN Movies) \ (m_2 \IN Movies) \\
+Q_1 & := & \FOR (m_1 \IN \relation{Movies}) \ (m_2 \IN \relation{Movies}) \\
  & & \WHERE m_1.{\sf title} = m_2.{\sf title} \\
  & & \RETURN (m_1.{\sf director}, m_2.{\sf actor})
 \end{eqnarray*}   
-\end{normalsize}
 and the semantically optimized query:
-\begin{normalsize}
 \begin{eqnarray*}
-Q_2 & := & \FOR (m \IN Movies) \\
+Q_2 & := & \FOR (m \IN \relation{Movies}) \\
  & & \RETURN (m.{\sf director}, m.{\sf actor})
 \end{eqnarray*}   
-\end{normalsize}
-It is easy to see that for every $I$, $Q_2(I) \subseteq Q_1(I)$, and indeed there is a homomorphism $h : Q_1 \to Q_2$; namely, the substitution $m_1 \mapsto m, m_2 \mapsto m$.  To check this, we first apply $h$ to $Q_1$:
-\begin{normalsize}
+
+
+It is easy to show that for every instance $I$ that satifies the embedded dependency above, $Q_2(I) \subseteq Q_1(I)$.
+First, we show that there is a homomorphism $h : Q_1 \to Q_2$; namely, the substitution $m_1 \mapsto m, m_2 \mapsto m$.
+To check this, we first apply $h$ to $Q_1$:
+\greg{This query seems strange? Are we shadowing the name $m$? Or is something else going on?}
 \begin{eqnarray*}
-h(Q_1) & := & \FOR (m \IN Movies) \ (m \IN Movies) \\
+h(Q_1) & := & \FOR (m \IN \relation{Movies}) \ (m \IN \relation{Movies}) \\
  & & \WHERE m.{\sf title} = m.{\sf title} \\
  & & \RETURN (m.{\sf director}, m.{\sf actor})
 \end{eqnarray*}   
-\end{normalsize}
-In $h(Q_1)$ each generator $(m \IN Movies)$ appears in $Q_2$.  Moreover, the ${\tt where}$ 
-clause of $h(Q_1)$ is a tautology and hence is entailed by the (empty) ${\tt where}$ clause of 
-$Q_2$.  Finally, the two ${\tt return}$ clauses are equal.  As such, the substitution $m_1 
-\mapsto m, m_2 \mapsto m$ is a homomorphism.  
+In $h(Q_1)$ each generator $(m \IN \relation{Movies})$ appears in $Q_2$.
+Next, we show that the $\WHERE$ clause of $h(Q_1)$ is a tautology and hence is entailed by the (empty) ${\tt where}$ clause of $Q_2$.
+Finally, the two $\WHERE$ clauses are equal, which concludes the proof that the substitution $m_1 \mapsto m, m_2 \mapsto m$ is a homomorphism.
 
-There is no homomorphism $Q_2 \to Q_1$, and hence $Q_1 \ncong Q_2$.  
+Since there is no homomorphism $Q_2 \to Q_1$, $Q_1 \ncong Q_2$.  
 There are only two candidates: $m \mapsto m_1$ and $m \mapsto m_2$.  
-Neither works because neither of the  images of $Q_2$'s $\RETURN$ clause (neither 
-$\RETURN (m_1.{\sf director}, m_1.{\sf actor})$ nor $\RETURN (m_2.{\sf director},$ $m_2.
-{\sf actor})$) is equivalent to $Q_1$'s $\RETURN$ clause ($\RETURN (m_1.{\sf director},$ 
-$m_2.{\sf actor})$), even under the equality in $Q_1$ ($m_1.{\sf title} = m_2.{\sf 
-title}$). 
+Neither works since the image of $Q_2$'s $\RETURN$ clause under either substitution (i.e. either $\RETURN (m_1.{\sf director}, m_1.{\sf actor})$ or $\RETURN (m_2.{\sf director}, m_2.{\sf actor})$) is equivalent to $Q_1$'s $\RETURN$ clause ($\RETURN (m_1.{\sf director}, m_2.{\sf actor})$), under the equality in $Q_1$ ($m_1.{\sf title} = m_2.{\sf title}$).
 
 %  Indeed, consider the instance:  
 %\begin{normalsize}
@@ -278,149 +284,152 @@ title}$).
 
 The chase is a confluent rewriting procedure that rewrites queries using EDs~\cite{foundations}.   Let
 
- %We now describe the chase, and in the next section we show how to use it to optimize queries.   
-\parbox{1.5in}{
-\begin{eqnarray*}
+ %We now describe the chase, and in the next section we show how to use it to optimize queries.
+\[
+\begin{array}{ccc} %% \parbox{1.5in}{
+\begin{array}[t]{rcl}
  C & := & \FORALL \overrightarrow{(x \IN X)} \\
  & & \WHERE P(\overrightarrow{x}) \\
  & & \EXISTS \overrightarrow{(y \IN Y)} \\
  & & \WHERE B(\overrightarrow{x}, \overrightarrow{y})
-\end{eqnarray*}
-} \ \ \ \ \ \parbox{1.5in}{
-\begin{eqnarray*}
+\end{array} & &
+%% }
+%% \parbox{1.5in}{
+\begin{array}[t]{rcl}
 Q & := & \FOR \overrightarrow{(v \IN V)} \\
  & & \WHERE  O(\overrightarrow{v}) \\ 
  & & \RETURN R(\overrightarrow{v})
-\end{eqnarray*}
-}
+\end{array}
+\end{array}
+\]
 and suppose there exists a (tableau) homomorphism $h : front(C) \to Q$.  A {\it chase step} is to rewrite $Q$ into $step(C,Q)$ by adding the image of the existential part of $C$:
-\begin{normalsize}
 \begin{eqnarray*}
 step(C,Q) & := & \FOR \overrightarrow{(v \IN V)} \ \overrightarrow{(y \IN Y)} \\
  & & \WHERE  O(\overrightarrow{v}) \wedge B(\overrightarrow{h(x)}, \overrightarrow{y}) 
-\\ 
+\\
  & & \RETURN R(\overrightarrow{v})
 \end{eqnarray*}
-\end{normalsize}
-Chase steps are semantics-preserving on instances that obey the constraints~\cite{Popa99anequational}:
-$$C \vdash Q \cong step(C,Q)$$
-The {\it chase} itself is to repeatedly (and non-deterministically) choose a homomorphism and step until a fixed point (up to homomorphic equivalence) is reached:
-$$
-Q \rightsquigarrow step(C, Q) \rightsquigarrow step(C, step(C, Q)) \rightsquigarrow \ldots 
-$$
+Chase steps are semantics-preserving on instances that satisfy the constraints~\cite{Popa99anequational}:
+\[
+C \vdash Q \cong step(C,Q)
+\]
+
+The {\it chase} algorithm itself simply repeats the case step until it finds a fixed point (up to homomorphic equivalence).
+That is:
+\[\begin{array}{l}
+chase(\vec{C},Q) \equiv Q' \quad \textrm{iff} \\
+\quad Q \rightsquigarrow step(C, Q) \rightsquigarrow step(C, step(C, Q)) \rightsquigarrow \ldots \rightsquigarrow Q'
+\end{array}
+\]
 %The termination condition is to not take a chase step when there is a homomorphism extending $h$ from $chase(Q, C)$ to $Q$.
-Termination of the chase is undecidable, but if it terminates the final result is unique (up to homomorphic equivalence)~\cite{Deutsch:2006:QRC:1121995.1122010}.  Provided certain fairness conditions are met~\cite{Deutsch:2006:QRC:1121995.1122010}, the chase extends easily to sets of EDs by choosing a particular ED to chase with at each step.  A key theorem about the chase is that it reduces the question of query equivalence under constraints to simple homomorphic equivalence: let $C$ be a set of EDs and $Q_1, Q_2$ queries.  Then:
-$$
+Termination of the chase is undecidable, but if it terminates the final result is unique (up to homomorphic equivalence)~\cite{Deutsch:2006:QRC:1121995.1122010}.  Provided certain fairness conditions are met~\cite{Deutsch:2006:QRC:1121995.1122010}, the chase extends easily to sets of EDs by choosing a particular ED to chase with at each step.
+
+A key theorem about the chase is that it reduces the question of query equivalence under constraints to homomorphic equivalence.
+If $\vec{C}$ is a set of EDs and $Q_1$ and $Q_2$ are queries, then
+\[
 C \vdash Q_1 \cong Q_2 \ \ \ \  \textnormal{iff} \ \ \ \ chase(C,Q_1) \leftrightarrow chase(C, Q_2)
-$$
-{\bf Example.} Continuing with our $Movies$ example, there is a homomorphism $x \mapsto 
+\]
+\paragraph{Example} Continuing with our \relation{Movies} example, there is a homomorphism $x \mapsto 
 m_1, y \mapsto m_2$ from the front of our constraint: 
 \begin{normalsize}
 \begin{eqnarray*}
-C& := & \FORALL (x \IN Movies) \ (y \IN Movies) \\
+C& := & \FORALL (x \IN \relation{Movies}) \ (y \IN \relation{Movies}) \\
 & & \WHERE x.{\sf title} = y.{\sf title}, \\ 
 & & \EXISTS \\
 & & \WHERE x.{\sf director} = y.{\sf director}
 \end{eqnarray*}
 \end{normalsize}
 to our original query:
-\begin{normalsize}
 \begin{eqnarray*}
-Q_1 & := & \FOR (m_1 \IN Movies) \ (m_2 \IN Movies) \\
+Q_1 & := & \FOR (m_1 \IN \relation{Movies}) \ (m_2 \IN \relation{Movies}) \\
  & & \WHERE m_1.{\sf title} = m_2.{\sf title} \\
  & & \RETURN (m_1.{\sf director}, m_2.{\sf actor})
 \end{eqnarray*}
-\end{normalsize}
-Hence, we can take a chase step: 
-\begin{normalsize}
+Hence, we can take a chase step:
 \begin{eqnarray*}
-step(C, Q_1) := & & \FOR (m_1 \IN Movies) \ (m_2 \IN Movies) \\
+step(C, Q_1) := & & \FOR (m_1 \IN \relation{Movies}) \ (m_2 \IN \relation{Movies}) \\
  & & \WHERE m_1.{\sf title} = m_2.{\sf title} \wedge \\
  & & \ \ \ \ \ \ \ \ \ \ \ \  m_1.{\sf director} = m_2.{\sf 
 director} \\
  & & \RETURN (m_1.{\sf director}, m_2.{\sf actor})
 \end{eqnarray*}
-\end{normalsize}
-At this point we stop chasing, because $step(C, step(C, Q_1))$ is syntactically equal (and hence homomorphically equivalent) to $step(C, Q_1)$, and we have established that $C \vdash Q_1 \cong chase(C, Q_1)$. %In general, it is not enough to check for the syntactic equality of $chase(Q, C)$ and $Q$ to stop the chase, as queries can be equivalent without being syntactically equal.  Hence, we must use homomorphisms to detect termination.  
+At this point we stop chasing, since $step(C, step(C, Q_1))$ is homomorphically equivalent (even syntactically equivalent) to $step(C, Q_1)$.
+By the soundness of the chase we have established that $C \vdash Q_1 \cong chase(C, Q_1)$.
+%In general, it is not enough to check for the syntactic equality of $chase(Q, C)$ and $Q$ to stop the chase, as queries can be equivalent without being syntactically equal.  Hence, we must use homomorphisms to detect termination.  
 
 \section{Tableaux Minimization}
 \label{sec:minimize}
 
-We now demonstrate how to minimize queries in the presence of 
-EDs, a technique known as ``tableaux minimization using chase and back-chase''~\cite{Deutsch:2006:QRC:1121995.1122010}.   Suppose we are given a query $Q$ and set of EDs $C$.  
-We first chase $Q$ with $C$ to obtain $U$, a so-called {\it universal plan}.  We then 
-search for subqueries of $U$ (which are intuitively obtained by removing generators from $U$), chasing each in turn with $C$ to check for equivalence with $U$.  There will always be a unique minimal query (up to homomorphic equivalence)~\cite{Deutsch:2006:QRC:1121995.1122010}.
+We now demonstrate how to minimize queries in the presence of EDs, using a technique known as ``tableaux minimization using chase and back-chase''~\cite{Deutsch:2006:QRC:1121995.1122010}.
+Suppose we are given a query $Q$ and set of EDs $C$.
+We first chase $Q$ with $C$ to obtain $U$, a so-called {\it universal plan}.
+We then search for subqueries of $U$ (which are intuitively obtained by removing generators from $U$), chasing each in turn with $C$ to check for equivalence with $U$.
+There will always be a unique minimal query (up to homomorphic equivalence)~\cite{Deutsch:2006:QRC:1121995.1122010}.
 
 \subsection*{Example - Movies}
 Start with our query and constraint from the introduction:
-\begin{normalsize}
 \begin{eqnarray*}
-Q_1 & := & \FOR (m_1 \IN Movies) \ (m_2 \IN Movies) \\
+Q_1 & := & \FOR (m_1 \IN \relation{Movies}) \ (m_2 \IN \relation{Movies}) \\
  & & \WHERE m_1.{\sf title} = m_2.{\sf title} \\
  & & \RETURN (m_1.{\sf director}, m_2.{\sf actor})
-\end{eqnarray*}        
+\end{eqnarray*}
 \begin{eqnarray*}
-C & := & \FORALL (x \IN Movies) \ (y \IN Movies) \\
-& & \WHERE x.{\sf title} = y.{\sf title} \\ 
+C & := & \FORALL (x \IN \relation{Movies}) \ (y \IN \relation{Movies}) \\
+& & \WHERE x.{\sf title} = y.{\sf title} \\
 & & \EXISTS \\
 & & \WHERE x.{\sf director} = y.{\sf director}
 \end{eqnarray*}
-\end{normalsize}
 The universal plan, i.e., $chase(C,Q_1)$, is:
-\begin{normalsize}
 \begin{eqnarray*}
-U & := & \FOR (m_1 \IN Movies) \ (m_2 \IN Movies) \\
+U & := & \FOR (m_1 \IN \relation{Movies}) \ (m_2 \IN \relation{Movies}) \\
  & & \WHERE m_1.{\sf title} = m_2.{\sf title} \wedge m_1.{\sf director} = m_2.{\sf 
 director} \\
  & & \RETURN (m_1.{\sf director}, m_2.{\sf actor})
-\end{eqnarray*}        
-\end{normalsize}
-We proceed with tableau minimization by searching for subqueries of $U$.  
-Removing the generator $(m_1 \IN Movies)$ and replacing $m_1$ with $m_2$ in the body of $Q$ gives a smaller query:
-\begin{normalsize}
-\begin{eqnarray*}
-Q_2 & := & \FOR (m_2 \IN Movies) \\
- & & \RETURN (m_2.{\sf director}, m_2.{\sf actor})
-\end{eqnarray*}        
-\end{normalsize}
-We wish to check that $C \vdash Q_1 \cong Q_2$, so we check that $U = chase(C,Q_1) \leftrightarrow chase(C, Q_2)$.  We find that $chase(C, Q_2) \cong Q_2$, so we will actually check that  $U \leftrightarrow Q_2$.  The identity substitution is a homomorphism $Q_2 \to U$: the important part to notice is the $\RETURN$ clause, wherein $(m_2.{\sf director},$ $m_2.{\sf actor})$ is equal to $(m_1.{\sf director},$ $m_2.{\sf actor})$ precisely because 
-of the equality $m_1.{\sf director}$ $=$ $m_2.{\sf director}$, which appears in $U$ 
-but not in $Q_1$.  There is also a homomorphism $U \to Q_2$, namely, $m_2 
-\mapsto m, m_1 \mapsto m$.  We thus conclude that $C \vdash U \cong Q_2 \cong Q_1$. 
-\newpage
-\subsection*{Example - Indexing}
+\end{eqnarray*}
+\greg{Overflows!}
 
-As we remarked in the introduction, a reasonably competent programmer might be able to optimize our $Movies$ query directly, without applying the chase at all.  But sometimes constraints are not available to the programmer, such as when indices are generated dynamically.  Consider the following query, which returns the names of all $Person$ between 16 and 18 years old:
-\begin{normalsize}
+We proceed with tableau minimization by searching for subqueries of $U$.
+Removing the generator $(m_1 \IN \relation{Movies})$ and replacing $m_1$ with $m_2$ in the body of $Q$ gives a smaller query:
 \begin{eqnarray*}
-Q_1 & := & \FOR (p \IN Person) \\
+Q_2 & := & \FOR (m_2 \IN \relation{Movies}) \\
+ & & \RETURN (m_2.{\sf director}, m_2.{\sf actor})
+\end{eqnarray*}
+To justify this, we need to check that $C \vdash Q_1 \cong Q_2$, which we can reduce to checking $U = chase(C,Q_1) \leftrightarrow chase(C, Q_2)$.
+We find that $chase(C, Q_2) \cong Q_2$, so we will actually check that  $U \leftrightarrow Q_2$.
+The identity substitution is a homomorphism $Q_2 \to U$: the important part to notice is the $\RETURN$ clause, wherein $(m_2.{\sf director},$ $m_2.{\sf actor})$ is equal to $(m_1.{\sf director},$ $m_2.{\sf actor})$ precisely because of the equality $m_1.{\sf director}$ $=$ $m_2.{\sf director}$, which appears in $U$ but not in $Q_1$.
+There is also a homomorphism $U \to Q_2$, namely, $m_2 \mapsto m, m_1 \mapsto m$.  We thus conclude that $C \vdash U \cong Q_2 \cong Q_1$. 
+
+\subsection*{Example - Indexing}
+As we remarked in the introduction, a reasonably competent programmer might be able to optimize our \relation{Movies} query directly, without applying the chase at all.  But sometimes constraints are not available to the programmer, such as when indices are generated dynamically.  Consider the following query, which returns the names of all \relation{Person} between 16 and 18 years old:
+\begin{eqnarray*}
+Q_1 & := & \FOR (p \IN \relation{People}) \\
  & & \WHERE p.{\sf age} > 16 \wedge p.{\sf age} < 18 \\
  & & \RETURN p.{\sf name}
-\end{eqnarray*}   
-\end{normalsize}
-Technically, this query is not a purely conjunctive query because the where clause involves the less-than predicate $<$.  However, the machinery of tableaux minimization can still be used, and one of the advantages of our Coq development is that users are free to write arbitrary Coq expressions in where clauses, and Coq tactics can be used to reason about such where clauses.
-  
-Depending on the underlying access patterns, or the whims of a database administrator, an RDBMS might transparently index $Person$ by creating another relation $Children$, such that the following two constraints hold:
-\begin{normalsize}
+\end{eqnarray*}
+Technically, this query is not a purely conjunctive query because the \WHERE\ clause involves the less-than predicate $<$.
+However, the machinery of tableaux minimization can still be used.
+%% , and one of the advantages of our Coq development is that users are free to write arbitrary Coq expressions in where clauses, and Coq tactics can be used to reason about such where clauses.
+
+Depending on the underlying access patterns, or the whims of a database administrator, an RDBMS might transparently index \relation{People} by creating another relation \relation{Children}, such that the following two constraints hold:
 \begin{eqnarray*}
-C_1 & := & \FORALL (p \IN Person) \\
+C_1 & := & \FORALL (p \IN \relation{People}) \\
  & & \WHERE p.{\sf age} < 21 \\
- & & \EXISTS (c \IN Children) \\
+ & & \EXISTS (c \IN \relation{Children}) \\
  & & \WHERE p.{\sf name} = c.{\sf name} \wedge p.{\sf age} = c.{\sf age}  \\
  & & \\
-  C_2 & := & \FORALL (c \IN Children) \\
+  C_2 & := & \FORALL (c \IN \relation{Children}) \\
   & & \WHERE \\
- & & \EXISTS (p \IN Person) \\
+ & & \EXISTS (p \IN \relation{People}) \\
  & & \WHERE p.{\sf name} = c.{\sf name} \wedge p.{\sf age} = c.{\sf age}
-\end{eqnarray*}       
-\end{normalsize}
+\end{eqnarray*}
 
-In order to use this new index queries written against $Person$ must be rewritten, at runtime, to use $Children$.  Tableaux minimization provides an automated mechanism to do so. 
+In order to use this new index, queries written against \relation{People} must be rewritten to use \relation{Children}.
+Tableaux minimization provides an automated mechanism to do so.
 
 Let $C = \{ C_1, C_2\}$.  First, we find the universal plan $U = chase(C, Q_1)$.  We begin by chase stepping $Q$ with $C_1$.  The identity substitution is a homomorphism $front(C_1) \to Q_1$, because $p.{\sf age} < 21$ is entailed by $p.{\sf age} > 16 \wedge p.{\sf age} < 18$; thus we chase step to:
 \begin{normalsize}
 \begin{eqnarray*}
-U & := & \FOR (p \IN Person) \ (c \IN Children) \\
+U & := & \FOR (p \IN Person) \ (c \IN \relation{Children}) \\
  & & \WHERE p.{\sf age} > 16 \wedge p.{\sf age} < 18 \wedge \\
  & & \ \ \ \ \ \ \ \ \ \ \ \ p.{\sf name} = c.{\sf name} \wedge p.{\sf age} = c.{\sf age} \\
  & & \RETURN p.{\sf name}
@@ -428,27 +437,28 @@ U & := & \FOR (p \IN Person) \ (c \IN Children) \\
 \end{normalsize}
 and we find that $U \cong step(C_1, U)$, so no further chase steps using $C_1$ are possible.  Now we chase step $U$ using $C_2$, and we find that $U \cong step(C_2, U)$, so no further chase steps with $C_2$ are possible.  Hence we have computed the universal plan $U = chase(C,Q_1)$.
 
+\greg{overflows!}
 Next, we minimize the universal plan by removing the $(p \IN Person)$ generator (note that to do so we must replace each occurrence of $p$ with some other well-typed variable, in this case $c$):
-\begin{normalsize}
 \begin{eqnarray*}
-Q_2 & := & \FOR (c \IN Children) \\
+Q_2 & := & \FOR (c \IN \relation{Children}) \\
  & & \WHERE c.{\sf age} > 16 \wedge c.{\sf age} < 18 \\
   & & \RETURN c.{\sf name}
 \end{eqnarray*}  
-\end{normalsize}
-We now ``back-chase'' $Q_2$ with $C$.  We can take no chase steps with $C_1$, because there is no substitution $h$ that makes $(h(p) \IN Person)$ equal to $(c \IN Children)$.  We can chase step with $C_2$ using the identity substitution to obtain:
-\begin{normalsize}
+We now ``back-chase'' $Q_2$ with $C$.  We can take no chase steps with $C_1$, because there is no substitution $h$ that makes $(h(p) \IN Person)$ equal to $(c \IN \relation{Children})$.  We can chase step with $C_2$ using the identity substitution to obtain:
 \begin{eqnarray*}
-Q_2' & := & \FOR (c \IN Children) \ (p \IN Person) \\
+Q_2' & := & \FOR (c \IN \relation{Children}) \ (p \IN Person) \\
  & & \WHERE c.{\sf age} > 16 \wedge c.{\sf age} < 18 \wedge \\
  & & \ \ \ \ \ \ \ \ \ \ \ \   p.{\sf name} = c.{\sf name} \wedge p.{\sf age} = c.{\sf age}\\
   & & \RETURN c.{\sf name}
 \end{eqnarray*}  
-\end{normalsize}
-and no further steps with $C_1$ or $C_2$ are possible. Hence we have computed $Q_2' = chase(C, Q_2)$.  Recall that our goal is to check that $C \vdash Q_1 \cong Q_2$, which we do by checking $U = chase(C, Q_1) \leftrightarrow chase(C, Q_2) = Q_2'$; i.e., by checking $U \leftrightarrow Q_2'$.  It's easy to see that $U$ and $Q_2'$ are homomorphically equivalent under the substitution $p \mapsto c, c \mapsto p$, and we are finished.   
+
+At this point, no further steps with $C_1$ or $C_2$ are possible.
+Hence we have computed $Q_2' = chase(C, Q_2)$.
+Recall that our goal is to check that $C \vdash Q_1 \cong Q_2$, which we do by checking $U = chase(C, Q_1) \leftrightarrow chase(C, Q_2) = Q_2'$; i.e., by checking $U \leftrightarrow Q_2'$.
+It's easy to prove that $U$ and $Q_2'$ are homomorphically equivalent under the substitution $p \mapsto c, c \mapsto p$, which concludes the optimization.
 
 %
-%We check that $C \vdash Q^\prime \cong U$ by checking $chase(C, Q') \leftrightarrow U = chase(C,Q)$.  We start by finding $chase(C, Q')$, which turns out to be $Q'$ because no chase steps can be taken: there is no substitution $h$ that makes $(h(p) \IN Person)$ equal to $(c \IN Children)$.  By the same reasoning there is no homomorphism $U \to Q^\prime$, and hence $C$ $\nvdash$ $Q^\prime \cong U$.  Indeed, there may be extra tuples in $Children$ that do not appear in $Person$.  
+%We check that $C \vdash Q^\prime \cong U$ by checking $chase(C, Q') \leftrightarrow U = chase(C,Q)$.  We start by finding $chase(C, Q')$, which turns out to be $Q'$ because no chase steps can be taken: there is no substitution $h$ that makes $(h(p) \IN Person)$ equal to $(c \IN \relation{Children})$.  By the same reasoning there is no homomorphism $U \to Q^\prime$, and hence $C$ $\nvdash$ $Q^\prime \cong U$.  Indeed, there may be extra tuples in \relation{Children} that do not appear in \relation{People}.  
 %
 %Fortunately, if our index was built correctly we know that an additional constraint holds:
 %\begin{normalsize}
