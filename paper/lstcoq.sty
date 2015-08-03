@@ -45,7 +45,8 @@ destruct, induction, using, refine, inversion, injection,
             replace, fold, unfold, change, cutrewrite, simpl,
          have, suff, wlog, suffices, without, loss, nat_norm,
             assert, cut, trivial, revert, bool_congr, nat_congr,
- symmetry, transitivity, auto, eauto, split, autorewrite, abstract},
+ symmetry, transitivity, auto, eauto, split, autorewrite, abstract,
+ setoid_rewrite},
 % symmetry, transitivity, auto, split, left, right, autorewrite},
 %
 % Terminators
