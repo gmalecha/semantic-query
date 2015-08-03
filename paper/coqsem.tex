@@ -661,7 +661,7 @@ In addition to Gallina, Coq also includes a partial, untyped ``tactic'' language
 \ltac{} tactics generate Gallina terms that are checked by the Coq kernel in the same way that hand-written terms are checked.
 
 \paragraph{The \ltac{} Model}
-In this paper, we use \ltac{} to optimize queries in a similar way to Fiat's~\cite{} use of \ltac{} to optimize programs.
+In this paper, we use \ltac{} to optimize queries in a similar way to Fiat's~\cite{DBLP:conf/popl/DelawarePGC15} use of \ltac{} to optimize programs.
 This use of \ltac{} is somewhat unorthodox; the standard use of \ltac{} is to prove theorems via ``proof scripts'' that express how proofs should be built.
 Indeed, the operational semantics of \ltac{} are tailored to fit this standard use of \ltac{}, rather than to fit our use of \ltac{} as a query optimizer.
 For example, every \ltac{} tactic runs against a particular ``proof obligation'' (a.k.a goal), such as \coqe{x + y = y + x}.
@@ -1259,7 +1259,9 @@ query Movie (fun _ => true) (fun x => (x.$\textsf{director}$, x.$\textsf{actor}$
 \section{Discussion of Tactic-based Optimization}
 \label{sec:discussion}
 
-In this paper we have implemented a verifying query optimizer as a Coq tactic.  Doing so has several trade-offs compared to a more traditional approach that would implement a query optimizer as a Gallina term (e.g.,~\cite{coqdb}).
+In this paper we have implemented a verifying query optimizer as a Coq tactic, an approach which is similar to the work of Deleware et.al. on Fiat~\cite{DBLP:conf/popl/DelawarePGC15}.
+Tactic-based development has several trade-offs compared to a more traditional approach that would implement a query optimizer as a Gallina term (e.g.,~\cite{coqdb}).
+
 
 \paragraph{Benefits}
 The primary benefit of the optimizer-as-tactic approach is the ability to easily extend the optimizer with a minimal amount of work.
