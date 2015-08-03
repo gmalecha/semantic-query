@@ -1,0 +1,22 @@
+-Q ./coq-ext-lib/theories ExtLib
+-Q theories SemanticQuery
+
+./theories/DataModel.v
+./theories/ListModel.v
+./theories/PredModel.v
+./theories/ChaseShallow.v
+./theories/LtacChase.v
+./theories/DemoLtacMovies.v
+./theories/DemoLtacIndex.v
+
+./theories/Types.v
+./theories/Expr.v
+./theories/Tables.v
+./theories/RecordTableaux.v
+./theories/Entailer.v
+./theories/HomomorphismSearch.v
+./theories/Demo.v
+./theories/Chase.v
+./theories/ProveED.v
+./theories/Minimize.v
+./theories/Parsing.v

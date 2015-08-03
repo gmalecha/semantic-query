@@ -399,7 +399,7 @@ Ltac prove_query_homomorphic_equivalent solver :=
   end.
 
 Ltac chase_ed solver :=
-  match goal with
+  lazymatch goal with
   | |- _ -> Meq ?pre ?post =>
     try unfold post ;
     first [ refine (@chase_sound_apply_ed_tt _ _ _ _ _ _ _ _ _ _ _ _ _ _)
@@ -425,7 +425,7 @@ Ltac chase solver :=
           | is_evar m ; let y := fresh in intro y ; symmetry ; revert y ] ;
     repeat first [ refine (@refine_transitive_under_flip _ _ _ _ _ _ _ _ _) ;
                    [ shelve
-                   | once solve [ ed_search ; chase_ed solver m ]
+                   | once solve [ ed_search ; chase_ed solver ]
                    | ]
                  | simpl ; reflexivity ]
   | |- Meq ?x ?m => simpl ; reflexivity
