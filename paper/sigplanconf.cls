@@ -580,8 +580,7 @@
     \parbox[b]{20pc}{%
       \scriptsize
       \if \@preprint
-        [Copyright notice will appear here
-         once 'preprint' option is removed.]\par
+        [To appear in DBPL 2015.]\par
       \else
         \@toappear
       \fi
