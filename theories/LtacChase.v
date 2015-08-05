@@ -423,11 +423,13 @@ Ltac chase solver :=
     try (has_evar Z ; fail 10000 "premises contains evar") ;
     first [ is_evar x
           | is_evar m ; let y := fresh in intro y ; symmetry ; revert y ] ;
-    repeat first [ refine (@refine_transitive_under_flip _ _ _ _ _ _ _ _ _) ;
-                   [ shelve
-                   | once solve [ ed_search ; chase_ed solver ]
-                   | ]
-                 | simpl ; reflexivity ]
+    let rec continue_chase :=
+        first [ refine (@refine_transitive_under_flip _ _ _ _ _ _ _ _ _) ;
+                [ shelve
+                | solve [ ed_search ; chase_ed solver ]
+                | continue_chase ]
+              | simpl ; reflexivity ]
+    in continue_chase
   | |- Meq ?x ?m => simpl ; reflexivity
   end.
 
