@@ -1,4 +1,5 @@
-\documentclass[preprint]{sigplanconf}
+\documentclass{sigplanconf}
+\toappear{}
 
 \usepackage{amssymb}
 \usepackage{amsmath}
@@ -24,7 +25,7 @@
   xleftmargin=5pt,
   xrightmargin=5pt}
 
-\usepackage[bookmarks=true,colorlinks=true, citecolor=cyan]{hyperref} %%linkcolor=MidnightBlue, 
+%\usepackage[bookmarks=true,colorlinks=true, citecolor=cyan]{hyperref} %%linkcolor=MidnightBlue, 
 
 \newcommand{\FOR}{{\tt for}\relax\ifmmode\ \else\xspace\fi}
 \newcommand{\FORALL}{{\tt forall}\relax\ifmmode\ \else\xspace\fi}
@@ -55,7 +56,7 @@
 
 \authorinfo{Gregory Malecha}{University of California, San Diego}{\sf gmalecha@eng.ucsd.edu} 
 
-\authorinfo{Ryan Wisnesky\titlenote{Work supported by ONR grant N000141310260 and AFOSR grant FA9550-14-1-0031}}{Massachusetts Institute of Technology}{\sf wisnesky@math.mit.edu}
+\authorinfo{Ryan Wisnesky}{Massachusetts Institute of Technology}{\sf wisnesky@math.mit.edu}
 
 \date{\today}
 
@@ -64,6 +65,10 @@
 \begin{abstract}
 Semantic optimization --- the use of data integrity constraints to optimize relational queries --- has been well studied but, owing to limitations in how SQL handles constraints, has not often been applied by mainstream RDBMSs. In a language-integrated query setting, however, the query provider is free to rewrite queries before they are executed on an RDBMS.  We show, using Coq as our ambient language, how to use dependent types to represent a well known class of constraints --- embedded, implicational dependencies --- and how Coq tactics can be used to implement a particular kind of semantic optimization: tableaux minimization, which minimizes the number of joins required by a query.
 \end{abstract}
+
+\category{H.2.3}{Database programming languages}{}
+
+\keywords Chase, Coq, LINQ, semantic optimization
 
 \section{Introduction}
 
@@ -522,7 +527,8 @@ Defined.
 %Again the first line declares the name of a term.
 The type of \coqe{optimized_query} says that \coqe{optimized_query} is a pair of a query, \coqe{q$_{opt}$}, and a proof that \coqe{q$_{opt}$} is equivalent to \coqe{q} on instances satisfying \coqe{title_director_ed}.
 %% Here $\vdash$ is an infix operation that defines when two queries are equal under some constraint.
-The actual Coq term corresponding to \coqe{optimized_query} is constructed by the \coqe{optimize} tactic.  We can see the result of the optimization by asking Coq to print the first component of the pair:
+The actual Coq term corresponding to \coqe{optimized_query} is constructed by the \coqe{optimize} tactic.  We can see the result of the optimization by asking Coq to print the first component of the pair: \\
+
 \begin{coq}
 Eval compute in (proj1_sig optimized_query).
 (* = x <- Movies ; return (x.$\textcolor{dkgreen}{\textsf{director}}$, x.$\textcolor{dkgreen}{\textsf{actor}}$)
@@ -1380,9 +1386,9 @@ There are a few caveats to keep in mind when interpreting these performance resu
 
 \item Finding a homomorphism between two (conjunctive) tableaux is an NP-hard problem~\cite{Deutsch:2006:QRC:1121995.1122010}.  Specialized heuristic algorithms exist to solve this problem quickly, but our implementation uses a na\"ive brute-force search.
 
-\item Coq's \ltac{} implementation is both interpreted and single-threaded.
+\item Coq's \ltac{} implementation is interpreted and single-threaded.
 
-\item Much optimization is done offline where performance is not essential.
+\item Optimization can be done offline when speed is not crucial.
 
 %% \item A non-negligible fraction of the overall time in the index example can also be attributed to solving numeric side conditions using the \coqe{omega} tactic.
 
@@ -1436,7 +1442,7 @@ In phrasing problems dealing with binders we express syntactic manipulation of b
 %% For example, queries need to be manipulated indirectly through applying and rewriting using lemmas; ; and traditional first-order phrasings of syntax in terms of binders with concrete variable names needs to be translated to manipulations of environments.
 We hope that our solutions to these issues in this paper will allow others to create their own query (and program) optimizers as Coq tactics.
 
-While not currently competitive with more traditional programming languages in terms of speed, \ltac{} is continually improving and similar systems feature prominently in the development of large-scale verified software systems such as Idris~\cite{brady2013idris} and Agda~\cite{agda}.  Moreover, recent work~\cite{malecha2015thesis,devriese2013tsmp,vanderwalt2013engineering-reflection-agda} has shown how tactic-based programming can be made first-class (i.e., reified into the language) by exploiting dependent types.
+While not currently competitive with more traditional programming languages in terms of speed, \ltac{} is continually improving and similar systems feature prominently in the development of large-scale verified software systems such as Idris~\cite{brady2013idris} and Agda~\cite{agda}.  Moreover, recent work~\cite{malecha2015thesis,devriese2013tsmp,vanderwalt2013engineering-reflection-agda} has shown how tactic-based programming can be made first-class (i.e., reified into the language) by using dependent types.
 %These systems have all begun to develop their own customizable and extensible automation libraries that will enable them to be used in the same ways that we currently use scripting languages.
 This next wave of tactic-based languages and libraries are already demonstrating substantial performance improvements and it is likely that tactic-based optimization will soon be a viable design pattern for language-integrated query systems.
 
@@ -1446,7 +1452,7 @@ This next wave of tactic-based languages and libraries are already demonstrating
 
 
 
-{\bf Acknowledgement}  The authors would like to thank Lucian Popa for answering many questions about semantic optimization.
+{\bf Acknowledgements}  The authors would like to thank Lucian Popa for answering many questions about semantic optimization.  This work was supported by ONR grant N000141310260 and AFOSR grant FA9550-14-1-0031.
 
 \bibliographystyle{plain}
 \bibliography{thesisbib}
