@@ -10,6 +10,7 @@
 \usepackage{lstcoq}
 \usepackage{comment}
 \usepackage{xspace}
+\usepackage{flushend}
 
 \lstset{ %
   numberbychapter=false, %
@@ -54,9 +55,9 @@
 \title{Using Dependent Types and Tactics to Enable Semantic Optimization of Language-Integrated Queries}
 %\titlenote{To appear in DBPL 2015}}
 
-\authorinfo{Gregory Malecha}{University of California, San Diego}{\sf gmalecha@eng.ucsd.edu} 
+\authorinfo{Gregory Malecha}{University of California, San Diego, USA}{\sf gmalecha@eng.ucsd.edu} 
 
-\authorinfo{Ryan Wisnesky}{Massachusetts Institute of Technology}{\sf wisnesky@math.mit.edu}
+\authorinfo{Ryan Wisnesky}{Massachusetts Institute of Technology, USA}{\sf wisnesky@math.mit.edu}
 
 \date{\today}
 
@@ -652,14 +653,15 @@ Using these as primitives, we define two additional operations.
 \end{itemize}
 On top of the data model we define {\tt for}-{\tt where}-{\tt return} queries (Figure~\ref{fig:chaseable-functor}).
 In the definition, \coqe{P} represents the \FOR clause, \coqe{C} represents the \WHERE clause, and \coqe{E} represents the \RETURN clause.
-%% As remarked earlier, our Coq library normalizes arbitrary combinations of the monad operations into the above form.
+Note that when using \coqe{query} \coqe{S} and \coqe{T} will be omitted since they can inferred from the other arguments (e.g., $S$ is determined by $P$).
 Concretely, the movies query from the introduction is represented as:
 \begin{coq}
 query (Mprod Movies Movies)
       (fun ab => (fst ab).$\textsf{title}$ ?= (snd ab).$\textsf{title}$)
       (fun ab => ((fst ab).$\textsf{director}$, (snd ab).$\textsf{actor}$))
 \end{coq}
-Note that the $S$ and $T$ arguments are omitted since they can be inferred from the other arguments (e.g., $S$ is determined by $P$).  $P$ constructs the product of the \relation{Movies} relation with itself.
+%% Note that the $S$ and $T$ arguments are omitted since they can be inferred from the other arguments (e.g., $S$ is determined by $P$).
+$P$ constructs the product of the \relation{Movies} relation with itself.
 The \WHERE clause is a function that accepts a pair where the first element (\coqe{fst ab}) comes from the first copy of \relation{Movies} and the second (\coqe{snd ab}) comes from the second copy of \relation{Movies}; the \WHERE clause checks equality using Coq's boolean-valued equality operator which we denote with \coqe{?=}.  The \RETURN clause returns a pair of strings constructed from the pair of \relation{Movies}.
 
 %% Using these operations we define the \coqe{Mimpl} relation, \coqe{Mimpl m$_1$ m$_2$}, which states that \coqe{m$_1$} is a subset of \coqe{m$_2$}.  The \coqe{Meq} (also written $\cong$) relation is then defined in the standard way, i.e. \coqe{Meq m$_1$ m$_2$} if and only if \coqe{Mimpl m$_1$ m$_2$} and \coqe{Mimpl m$_2$ m$_1$}.  
@@ -700,7 +702,7 @@ Definition q_LOR : set (string $\times$ string) :=
 As is well-known~\cite{monad}, monadic computations such as relational conjunctive queries can always be normalized into the flat form used in the first half of this paper, and our optimizer performs this normalization (in a fully verified way) during optimization.
 
 
-\subsection{Background: Tactic-based Programming}
+\subsection{Background: Tactic-Based Programming}
 \label{sec:tactic-based}
 
 The core of the Coq Proof Assistant is a pure and dependently-typed functional programming language, called Gallina.  In addition to Gallina, Coq also includes a Turing-complete, untyped ``tactic'' language, called \ltac{}, which can be used to construct Gallina terms in a semi-imperative style. 
@@ -1100,9 +1102,7 @@ Proof. ... Qed.
 This lemma states that we can find a morphism from \coqe{m} to \coqe{Mprod u u'} if we can find a morphism from \coqe{m} to \coqe{u} and from \coqe{m} to \coqe{u'}.
 Note that in addition to breaking down the morphism by decomposing it into \coqe{f} and \coqe{g}, the left-hand side of the implication in the conclusion also shows how to use \coqe{f} and \coqe{g} to construct the final homomorphism.
 
-Repeatedly applying \coqe{pick_split} will eventually break the \FORALL clause down into atomic elements that we can match up with the query.
-This matching is essentially the same as the ED search procedure except that, as above, we must record the way to reconstruct the \coqe{h} function.
-The following three lemmas express (and justify) these manipulations.
+\begin{figure}
 \begin{coq}
 Lemma pick_left
 : forall {T' U' V} (f' : U' -> V) (x : M V) (y : M T') (k' : M U'),
@@ -1118,6 +1118,13 @@ Lemma pick_here
 : forall {T} (x : M T), Mimpl (Mmap (fun x => x) x) x.
 Proof. ... Qed.
 \end{coq}
+\caption{Manipulation lemmas for picking generators.}
+\label{fig:manipulation-lemmas}
+\end{figure}
+
+Repeatedly applying \coqe{pick_split} will eventually break the \FORALL clause down into atomic elements that we can match up with the query.
+This matching is essentially the same as the ED search procedure described in Section~\ref{sec:traverse-ed} except that, as above, we must record the way to reconstruct the \coqe{h} function.
+The three lemmas in Figure~\ref{fig:manipulation-lemmas} express (and justify) these manipulations.
 \coqe{pick_left} decides to use only the left-hand side of the \coqe{Mprod k' y} to determine \coqe{x}, \coqe{pick_right} is analogous for the right-hand side.
 Finally, \coqe{pick_here} applies when the value being searched for is exactly the value being bound in which case it can pick the value directly.
 
@@ -1193,7 +1200,7 @@ Ltac prove_query_homomorphic_equal solver :=
 Here chaining the \coqe{eapply} with \coqe{; [ a | b | c ]} allows us to specify different tactics to run on each of the individual goals produced by \coqe{eapply check_query_morphism_apply}.
 Note again that these tactics are parameterized by the underlying solver (\coqe{solver}) that they will use to discharge the side-conditions.
 
-\subsubsection{Computing the Fixed-point}
+\subsubsection{Computing the Fixed-Point}
 With the ability to iterate over EDs (Section~\ref{sec:traverse-ed}) and to compute a chase step (Section~\ref{sec:chase-step}), it is simple to implement the entire chase.
 %% The key detail to be aware of when constructing the full chase lies in delimiting the backtracking that the algorithm requires.
 %% When we fail to chase with a particular ED, it is no longer necessary to backtrack into the application of that ED.
@@ -1323,7 +1330,7 @@ query Movie (fun _ => true) (fun x => (x.$\textsf{director}$, x.$\textsf{actor}$
 %% \subsection{Non-Semantic Optimization}
 %% \greg{not finished but could be interesting and relatively simple}
 
-\section{Discussion of Tactic-based Optimization}
+\section{Discussion of Tactic-Based Optimization}
 \label{sec:discussion}
 
 %In this paper we presented our implementation of a verifying query optimizer as an \ltac{} tactic, an approach that is similar to the work of Delaware et.al.~\cite{DBLP:conf/popl/DelawarePGC15}.
@@ -1362,8 +1369,8 @@ In this case, a non-negligible fraction of the overall time in the index example
 
 \begin{figure}
 \centering
-\begin{tabular}{l | r | r}
-               & \multicolumn{2}{| c}{Time (s)} \\
+\begin{tabular}{l  r  r}
+               & \multicolumn{2}{ c}{Time (s)} \\
 \textbf{Phase} & \textbf{Movie} & \textbf{Index} \\\hline
 Normalize      & 0.64  & 0.48 \\
 Chase          & 0.89  & 3.9 \\
@@ -1456,7 +1463,6 @@ This next wave of tactic-based languages and libraries are already demonstrating
 
 \bibliographystyle{plain}
 \bibliography{thesisbib}
-
 
 \end{document}
 
