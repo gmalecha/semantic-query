@@ -1,0 +1,700 @@
+
+\documentclass{beamer}
+\setbeamertemplate{footline}[page number]
+%\usecolortheme{red}
+
+\usepackage{etex}
+\usepackage{savesym}
+\usepackage{amssymb, amsmath,amsthm,amscd}
+%\savesymbol{lrcorner}
+%\usepackage{txfonts}
+\savesymbol{lrcorner}\savesymbol{llcorner}\savesymbol{urcorner}\savesymbol{ulcorner}
+\usepackage{marvosym}
+\usepackage{wasysym}
+\savesymbol{Sun}\savesymbol{Mercury}\savesymbol{Venus}\savesymbol{Earth}\savesymbol{Mars}\savesymbol{Jupiter}\savesymbol{Saturn}\savesymbol{Uranus}\savesymbol{Neptune}\savesymbol{Pluto}\savesymbol{leftmoon}\savesymbol{rightmoon}\savesymbol{fullmoon}\savesymbol{newmoon}\savesymbol{Aries}\savesymbol{Taurus}\savesymbol{Gemini}\savesymbol{Leo}\savesymbol{Libra}\savesymbol{Scorpio}\savesymbol{diameter}
+\usepackage{mathabx}
+\usepackage{stmaryrd}
+\usepackage{setspace}
+\usepackage{chngcntr}
+\usepackage{enumerate,makecell}
+\usepackage{makeidx,tabularx,dashbox}
+%\usepackage[bookmarks=true,colorlinks=true, linkcolor=MidnightBlue, citecolor=cyan]{hyperref}
+%\usepackage{lmodern}
+%\usepackage{graphicx,float}
+%\usepackage{multirow}
+%\usepackage{geometry}
+%\newgeometry{left=1.0in,right=1.0in,top=1.0in,bottom=1.0in}
+\setbeamersize{text margin left=10pt,text margin right=10pt}
+%\usepackage[usenames,dvipsnames]{color}
+\usepackage[color,all,poly,matrix,arrow]{xy}
+
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{stmaryrd}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{lstcoq}
+\usepackage{comment}
+\usepackage{xspace}
+
+\lstset{ %
+  numberbychapter=false, %
+  language=coq, %
+%%  frame=lines, %
+  frameshape={yyy}{n}{n}{yyy}, %
+  framexleftmargin=-3pt,
+  framexrightmargin=-3pt,
+  numberstyle=\tiny, %
+  basicstyle=\footnotesize, %
+  captionpos=b,
+  numbersep=5pt,
+  xleftmargin=5pt,
+  xrightmargin=5pt}
+
+\usefonttheme[onlymath]{serif}
+
+\setbeamercolor{itemize item}{fg=red}
+\setbeamercolor{itemize subitem}{fg=red}
+\setbeamercolor{itemize subsubitem}{fg=red}
+\setbeamercolor{title}{fg=red}
+\setbeamercolor{titlelike}{fg=red}
+\def\bhline{\Xhline{2\arrayrulewidth}}
+\def\bbhline{\Xhline{2.5\arrayrulewidth}}
+\def\tn{\textnormal}
+\def\mf{\mathfrak}
+\def\mc{\mathcal}
+\def\taking{\colon}
+
+\definecolor{olive}{rgb}{0.3, 0.4, .1}
+
+\newcommand{\FOR}{{\tt for}\relax\ifmmode\ \else\xspace\fi}
+\newcommand{\FORALL}{{\tt forall}\relax\ifmmode\ \else\xspace\fi}
+\newcommand{\EXISTS}{{\tt exists}\relax\ifmmode\ \else\xspace\fi}
+\newcommand{\WHERE}{{\tt where}\relax\ifmmode\ \else\xspace\fi}
+\newcommand{\IN}{ \ {\tt in} \ }
+\newcommand{\RETURN}{{\tt return}\relax\ifmmode\ \else\xspace\fi}
+\newcommand{\DO}{{\tt do}}
+\newcommand{\IF}{{\tt if} \ }
+\newcommand{\THEN}{{\tt then} \ }
+\newcommand{\ELSE}{{\tt else} \ }
+\newcommand{\ZERO}{{\tt zero}}
+\newcommand{\FALSE}{{\tt false}}
+\newcommand{\BIND}{{\tt bind}}
+\newcommand{\UNION}{{\tt union}}
+\newcommand{\MAP}{{\tt map}}
+\newcommand{\CONS}{{\tt Cons}}
+\newcommand{\NIL}{{\tt Nil}}
+
+\newcommand{\ltac}[0]{\ensuremath{\mathcal{L}_{\mathrm{tac}}}}
+\newcommand{\relation}[1]{\ensuremath{\mathit{#1}}\xspace}
+
+\def\mcA{\mc{A}}
+\def\mcB{\mc{B}}
+\def\mcC{\mc{C}}
+\def\mcD{\mc{D}}
+\def\mcE{\mc{E}}
+\def\mcF{\mc{F}}
+\def\mcG{\mc{G}}
+\def\mcH{\mc{H}}
+\def\mcI{\mc{I}}
+\def\mcJ{\mc{J}}
+\def\mcK{\mc{K}}
+\def\mcL{\mc{L}}
+\def\mcM{\mc{M}}
+\def\mcN{\mc{N}}
+\def\mcO{\mc{O}}
+\def\mcP{\mc{P}}
+\def\mcQ{\mc{Q}}
+\def\mcR{\mc{R}}
+\def\mcS{\mc{S}}
+\def\mcT{\mc{T}}
+\def\mcU{\mc{U}}
+\def\mcV{\mc{V}}
+\def\mcW{\mc{W}}
+\def\mcX{\mc{X}}
+\def\mcY{\mc{Y}}
+\def\mcZ{\mc{Z}}
+
+\newcommand{\LMO}[1]{\overset{#1}{\bullet}}
+\newcommand{\LTO}[1]{\overset{\sf{#1}}{\bullet}}
+\newcommand{\LTOO}[1]{\stackrel{\sf{#1}}{\circ}}
+
+\newcommand{\LmO}[1]{\underset{#1}{\bullet}}
+\newcommand{\LtO}[1]{\underset{\sf{#1}}{\bullet}}
+\newcommand{\LA}[2]{\ar[#1]^-{\tn {#2}}}
+\newcommand{\LAL}[2]{\ar[#1]_-{\tn {#2}}}
+\newcommand{\obox}[3]{\stackrel{#1}{\fbox{\parbox{#2}{#3}}}}
+\newcommand{\labox}[2]{\obox{#1}{1.6in}{#2}}
+\newcommand{\mebox}[2]{\obox{#1}{1in}{#2}}
+\newcommand{\smbox}[2]{\stackrel{#1}{\fbox{#2}}}
+\newcommand{\fakebox}[1]{\tn{$\ulcorner$#1$\urcorner$}}
+\newcommand{\fakearrow}[1]{\;\underrightarrow{\tn{#1}}\;}
+\newcommand{\sq}[4]{\xymatrix{#1\ar[r]\ar[d]&#2\ar[d]\\#3\ar[r]&#4}}
+\newcommand{\namecat}[1]{\begin{center}$#1:=$\end{center}}
+\def\Inst{{\bf Inst}}
+\def\MonOb{\blacktriangle}
+
+\def\ullimit{\ar@{}[rd]|(.3)*+{\lrcorner}}
+\def\urlimit{\ar@{}[ld]|(.3)*+{\llcorner}}
+\def\lllimit{\ar@{}[ru]|(.3)*+{\urcorner}}
+\def\lrlimit{\ar@{}[lu]|(.3)*+{\ulcorner}}
+\def\ulhlimit{\ar@{}[rd]|(.3)*+{\diamond}}
+\def\urhlimit{\ar@{}[ld]|(.3)*+{\diamond}}
+\def\llhlimit{\ar@{}[ru]|(.3)*+{\diamond}}
+\def\lrhlimit{\ar@{}[lu]|(.3)*+{\diamond}}
+\newcommand{\clabel}[1]{\ar@{}[rd]|(.5)*+{#1}}
+\newcommand{\TriRight}[7]{\xymatrix{#1\ar[dr]_{#2}\ar[rr]^{#3}&&#4\ar[dl]^{#5}\\&#6\ar@{}[u] |{\Longrightarrow}\ar@{}[u]|>>>>{#7}}}
+\newcommand{\TriLeft}[7]{\xymatrix{#1\ar[dr]_{#2}\ar[rr]^{#3}&&#4\ar[dl]^{#5}\\&#6\ar@{}[u] |{\Longleftarrow}\ar@{}[u]|>>>>{#7}}}
+\newcommand{\TriIso}[7]{\xymatrix{#1\ar[dr]_{#2}\ar[rr]^{#3}&&#4\ar[dl]^{#5}\\&#6\ar@{}[u] |{\Longleftrightarrow}\ar@{}[u]|>>>>{#7}}}
+
+
+\newcommand{\arr}[1]{\ar@<.5ex>[#1]\ar@<-.5ex>[#1]}
+\newcommand{\arrr}[1]{\ar@<.7ex>[#1]\ar@<0ex>[#1]\ar@<-.7ex>[#1]}
+\newcommand{\arrrr}[1]{\ar@<.9ex>[#1]\ar@<.3ex>[#1]\ar@<-.3ex>[#1]\ar@<-.9ex>[#1]}
+\newcommand{\arrrrr}[1]{\ar@<1ex>[#1]\ar@<.5ex>[#1]\ar[#1]\ar@<-.5ex>[#1]\ar@<-1ex>[#1]}
+
+\newcommand{\To}[1]{\xrightarrow{#1}}
+\newcommand{\Too}[1]{\xrightarrow{\ \ #1\ \ }}
+\newcommand{\From}[1]{\xleftarrow{#1}}
+\newcommand{\Fromm}[1]{\xleftarrow{\ \ #1\ \ }}
+
+\newcommand{\Adjoint}[4]{\xymatrix@1{#2 \ar@<.5ex>[r]^-{#1} & #3 \ar@<.5ex>[l]^-{#4}}}
+\newcommand{\adjoint}[4]{\xymatrix{#1\taking #2\ar@<.5ex>[r]& #3\hspace{1pt}:\hspace{-2pt} #4\ar@<.5ex>[l]}}
+
+\newcommand{\ProdMap}[2]{{\langle #1,#2 \rangle}}
+\newcommand{\pb}[3]{\ProdMap{#1}{#2}_{#3}}
+\newcommand{\CoprodMap}[2]{{\left\{\parbox{.1in}{$#1$\\$#2$}\right.}}
+\newcommand{\po}[3]{\!~_{#3}\CoprodMap{#1}{#2}}
+
+%\newtheorem{definition}{Definition}
+%\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+
+%\usepackage{beamerthemesplit}
+
+\title{\Large{Using Dependent Types and Tactics to Enable Semantic Optimization of Language-Integrated Queries}}
+\author{Gregory Malecha, gmalecha@eng.ucsd.edu \\
+{\bf Ryan Wisnesky}, wisnesky@math.mit.edu }
+
+\titlegraphic{
+
+\begin{tabular}{m{1in} m{.5in} b{1in}}
+\includegraphics[height=1in]{ucsd.png} &  &
+\includegraphics[height=.5in]{mit.png}  \vspace*{-.25in}
+\end{tabular}
+
+%\includegraphics[height=.75in]{ucsd.png} 
+%\hspace{1.5in}
+%\includegraphics[height=.5in]{mit.png} 
+%\vspace{.25in}
+}
+\vspace*{-.1in}
+%\date{Presented at the University of Pennsylvania \\ April 3, 2015}
+%\date{Foundational Methods in Computer Science \\ June 6, 2015}
+\date{DBPL \\ October 27, 2015}
+
+\begin{document}
+
+\usenavigationsymbolstemplate{}
+
+\frame{
+ \thispagestyle{empty}
+\titlepage}
+
+
+\frame{
+\frametitle{Outline}
+
+\begin{itemize}
+\item Goal: build a query optimizer in Coq
+%\vspace{-.2in}
+\begin{itemize}
+\item not to prove it correct, but
+\item to optimize monad comprehensions
+\begin{itemize}
+\item toward dependently-typed LINQ!
+\end{itemize}
+\end{itemize}
+\vspace{.1in}
+\item I will describe:
+\begin{itemize}
+ \item the basics of conjunctive query optimization
+ \item how to represent data integrity constraints in Coq
+\item how to build a query optimizer as a Coq tactic
+ \end{itemize}
+ \vspace{.1in}
+ \item Who cares?
+ \begin{itemize}
+  \item Coq users can use our tactic to optimize monad comprehensions in a provably correct way.
+\item Our work gives a {\it design pattern} for optimizing Coq code using tactics.
+\end{itemize}
+ \vspace{.1in}
+ \item Talk goals:
+\begin{itemize}
+\item Introduce semantic query optimization to functional programmers
+\item Introduce dependently-typed programming to database specialists
+\item The details of the Coq tactic are too difficult to convey in a talk
+\end{itemize}
+
+
+ \end{itemize}
+ 
+}
+%TODO: related work
+\frame{
+\frametitle{Overview}
+\begin{itemize}
+\item Part 1:
+\begin{itemize}
+\item Given a relational conjunctive query $Q$ 
+\item and a set of constraints $C$ of the form $\forall \vec{x}. \phi(\vec{x}) \to \exists \vec{y}. \psi(\vec{x},\vec{y})$
+\item we can compute a unique minimal query $Q'$ such that $C \vdash Q \cong Q'$
+\item or diverge 
+\end{itemize}
+\vspace{.2in}
+\item Part 2:
+\begin{itemize}
+\item Given a commutative, idempotent monad with zero in Coq
+\item and a Coq monad comprehension $Q$
+\item and a set of Coq proof objects $C$
+\item our Coq tactic (semi) computes $Q'$ and a proof that $C \vdash Q \cong Q'$
+\end{itemize}
+
+\end{itemize}
+}
+
+
+
+\frame{
+\frametitle{Semantic (constraint-aware) optimization}
+
+\begin{itemize}
+\item Return tuples $(d,a)$ where $a$ acted in a movie directed by $d$. 
+\begin{eqnarray*}
+& & \FOR (m_1 \IN \relation{Movies}) \ (m_2 \IN \relation{Movies}) \\
+ & & \WHERE m_1.{\sf title} = m_2.{\sf title} \\
+ & & \RETURN (m_1.{\sf director}, m_2.{\sf actor})
+\end{eqnarray*}        
+\vspace{.2in}
+\item Under functional dependency ${\sf title} \to {\sf director}$ is equivalent to:
+\begin{eqnarray*}
+& & \FOR (m \IN \relation{Movies}) \\
+ & & \RETURN (m.{\sf director}, m.{\sf actor})
+ \end{eqnarray*}
+%\item which can be evaluated without a join. 
+\end{itemize}
+
+}
+
+
+\frame{
+\frametitle{Embedded Dependencies (EDs)}
+
+\begin{itemize}
+\item Let $P$ and $B$ be conjunctions of equalities (e.g., $x_1=x_2$) and memberships (e.g, $R(x_1,x_2)$):
+\begin{eqnarray*}
+ & & \FORALL \overrightarrow{(x \IN X)} \\
+ & & \WHERE P(\overrightarrow{x}) \\
+ & & \EXISTS \overrightarrow{(y \IN Y)} \\
+ & & \WHERE B(\overrightarrow{x}, \overrightarrow{y})
+\end{eqnarray*}
+
+\item Functional dependency title $\to$ director expressed as:
+\begin{eqnarray*}
+& & \FORALL (x \IN \relation{Movies}) \ (y \IN \relation{Movies}) \\
+& & \WHERE x.{\sf title} = y.{\sf title}, \\ 
+& & \EXISTS \\
+& & \WHERE x.{\sf director} = y.{\sf director}
+\end{eqnarray*}
+\end{itemize}
+}
+
+\frame{
+\frametitle{The front and back of an ED}
+\vspace{-.2in}
+%\begin{itemize}
+%\item Let $\mathcal{L}(\overrightarrow{x})$ indicate a record capturing the variables $\overrightarrow{x}$:
+%\vspace{-.1in}
+\begin{eqnarray*}
+C & := & \FORALL \overrightarrow{(x \IN X)} \\
+ & & \WHERE P(\overrightarrow{x}) \\
+ & & \EXISTS \overrightarrow{(y \IN Y)} \\
+ & & \WHERE B(\overrightarrow{x}, \overrightarrow{y}) \\
+ & & \\
+front(C)& := & \FOR \overrightarrow{(x \IN X)} \\ 
+& & \WHERE P(\overrightarrow{x}) \\
+& & \RETURN (\overrightarrow{x})  \\
+& & \\
+back(C) & := & \FOR \overrightarrow{(x \IN X)} \ \overrightarrow{(y \IN Y)} \\ 
+& & \WHERE P(\overrightarrow{x}) \wedge B(\overrightarrow{x}, \overrightarrow{y}) \\
+& & \RETURN (\overrightarrow{x})
+\end{eqnarray*}
+%\item Theorem:
+\[
+\forall I, \quad I \models C \quad \textnormal{iff} \quad front(C)(I) = back(C)(I)
+\]
+%\end{itemize}
+
+}
+
+
+\frame{
+\frametitle{Homomorphisms of queries}
+\begin{itemize}
+\item A {\it homomorphism} $h : Q_1 \to Q_2$ between queries:
+\begin{eqnarray*}
+\begin{array}{l}
+\FOR \overrightarrow{(v_1 \IN V_1)} \\
+\WHERE P_1(\overrightarrow{v_1}) \\
+\RETURN R_1(\overrightarrow{v_1})
+\end{array} & \to_h &
+\begin{array}{l}
+\FOR \overrightarrow{(v_2 \IN V_2)} \\
+\WHERE P_2(\overrightarrow{v_2}) \\
+\RETURN R_2(\overrightarrow{v_2})
+\end{array}
+\end{eqnarray*}
+\vspace{.1in}
+\item is a substitution  $\overrightarrow{v_1} \mapsto \overrightarrow{v_2}$ such that
+\begin{itemize}
+\vspace{.1in}
+\item  $\overrightarrow{(h(v_1) \IN V_1)} \subseteq \overrightarrow{(v_2 \IN V_2)}$ 
+\vspace{.1in}
+\item  $P_2(\overrightarrow{v_2})$ $\vdash$ $P_1(h(\overrightarrow{v_1}))$ 
+\vspace{.1in}
+
+\item $P_2$ $\vdash$ $R_1(h(\overrightarrow{v_1})) = R_2(\overrightarrow{v_2})$
+
+\end{itemize}
+\vspace{.1in}
+\item $Q_1 \to Q_2$ implies $\forall I$, $Q_2(I) \subseteq Q_1(I)$
+\end{itemize}
+}
+
+\frame{
+\frametitle{The Chase}
+
+\[
+\begin{array}{ccc} %% \parbox{1.5in}{
+\begin{array}[t]{rcl}
+ C & := & \FORALL \overrightarrow{(x \IN X)} \\
+ & & \WHERE P(\overrightarrow{x}) \\
+ & & \EXISTS \overrightarrow{(y \IN Y)} \\
+ & & \WHERE B(\overrightarrow{x}, \overrightarrow{y})
+\end{array} & &
+\begin{array}[t]{rcl}
+Q & := & \FOR \overrightarrow{(v \IN V)} \\
+ & & \WHERE  O(\overrightarrow{v}) \\ 
+ & & \RETURN R(\overrightarrow{v})
+\end{array}
+\end{array}
+\]
+\begin{itemize}
+\item When $h : front(C) \to Q$,
+%A \emph{chase step} rewrites $Q$ into $step(C,Q)$ by adding the image of the back of $C$:
+\begin{eqnarray*}
+step(C,Q) & := & \FOR \overrightarrow{(v \IN V)} \ \overrightarrow{(y \IN Y)} \\
+ & & \WHERE  O(\overrightarrow{v}) \wedge B(\overrightarrow{h(x)}, \overrightarrow{y}) 
+\\
+ & & \RETURN R(\overrightarrow{v})
+\end{eqnarray*}
+$$
+C \vdash Q \cong step(C,Q)
+$$
+\item The $chase$ is to $step$ until a fixed point is reached. 
+\[
+C \vdash Q_1 \cong Q_2 \ \ \ \  \textnormal{if} \ \ \ \ chase(C,Q_1) \leftrightarrow chase(C, Q_2)
+\]
+\end{itemize}
+}
+
+\frame{
+\frametitle{Tableaux Minimization}
+
+\begin{itemize}
+\item Given a query $Q$ and set of EDs $C$
+\vspace{.1in}
+\item we first chase $Q$ with $C$ to obtain $U$, a so-called {\it universal plan}
+\vspace{.1in}
+\item then we search for sub-queries of $U$, chasing each in turn with $C$ to check for equivalence with $U$.
+\end{itemize}
+
+}
+
+\frame{
+%\frametitle{Movies Example}
+\vspace{-.2in}
+\begin{eqnarray*}
+Q_1 & := & \FOR (m_1 \IN \relation{Movies}) \ (m_2 \IN \relation{Movies}) \\
+ & & \WHERE m_1.{\sf title} = m_2.{\sf title} \\
+ & & \RETURN (m_1.{\sf director}, m_2.{\sf actor}) \\
+ & & \\
+C & := & \FORALL (x \IN \relation{Movies}) \ (y \IN \relation{Movies}) \\
+& & \WHERE x.{\sf title} = y.{\sf title} \\
+& & \EXISTS \\
+& & \WHERE x.{\sf director} = y.{\sf director} \\
+ & & \\
+chase(C,Q_1) & = & \FOR (m_1 \IN \relation{Movies}) \ (m_2 \IN \relation{Movies}) \\
+ & & \WHERE m_1.{\sf title} = m_2.{\sf title} \wedge \\
+ & & \qquad\quad m_1.{\sf director} = m_2.{\sf 
+director} \\
+ & & \RETURN (m_1.{\sf director}, m_2.{\sf actor}) \\
+ & & \\
+min(chase(C,Q_1)) & = & \FOR (m_2 \IN \relation{Movies}) \\
+ & & \RETURN (m_2.{\sf director}, m_2.{\sf actor})
+\end{eqnarray*}
+
+}
+
+\frame{
+\frametitle{Part 2}
+\begin{itemize}
+\item Part 1:
+\begin{itemize}
+\item Given a relational conjunctive query $Q$ 
+\item and a set of constraints $C$ of the form $\forall \vec{x}. \phi(\vec{x}) \to \exists \vec{y}. \psi(\vec{x},\vec{y})$
+\item we can compute a unique minimal query $Q'$ such that $C \vdash Q \cong Q'$
+\item or diverge 
+\end{itemize}
+\vspace{.2in}
+\item Part 2:
+\begin{itemize}
+\item Given a commutative, idempotent monad with zero in Coq
+\item and a Coq monad comprehension $Q$
+\item and a set of Coq proof objects $C$
+\item our Coq tactic (semi) computes $Q'$ and a proof that $C \vdash Q \cong Q'$
+\end{itemize}
+
+\end{itemize}
+}
+
+
+
+
+\begin{frame}[fragile]
+\frametitle{Coq}
+
+\begin{itemize}
+
+\item Coq is a proof assistant based on functional programming with dependent types:
+\begin{coq}
+Inductive List  (A : Type) : Nat -> Type :=
+ | nil : List A 0
+ | cons : forall(n : Nat), A -> List A n -> List A (n + 1). 
+ 
+Definition append A n m  : List A n -> List A m -> List A (n + m) := ...
+\end{coq}
+
+\item Coq programs can be built interactively using a scripting language:
+\begin{coq}
+Theorem append_unit : forall A n m l, append A n m nil l = l.
+Proof.
+ intros; induction n; 
+   [ reflexivity | simpl in *; rewrite H; trivial ].
+Qed.
+\end{coq}
+
+\item Coq is an intriguing ambient language for querying:
+\begin{coq}
+Definition f (C: ED) I (pf: holds I C) := ...
+\end{coq}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Queries in Coq}
+\begin{coq}
+Definition Movie : Type := (string $\times$ string $\times$ string).
+Definition Movies : set Movie := ...
+
+Definition title x := fst x. (* x.$\textcolor{dkgreen}{\textsf{title}}$ *)
+Definition director x := fst (snd x). (* x.$\textcolor{dkgreen}{\textsf{director}}$ *)
+Definition actor x := snd (snd x). (* x.$\textcolor{dkgreen}{\textsf{actor}}$ *)
+
+Definition q : set (string $\times$ string) :=
+  m1 <- Movies ; m2 <- Movies ;
+  guard (m1.$\textsf{title}$ = m2.$\textsf{title}$) ;
+  return (m1.$\textsf{director}$, m2.$\textsf{actor}$).
+  
+Definition optimized_query:
+{q$_{opt}$ : set (string $\times$ string) | title_director_ed -> q$_{opt}$ $\cong$ q}.
+optimize solver.
+
+Eval compute in (proj1 optimized_query).
+(* = x <- Movies ; return (x.$\textcolor{dkgreen}{\textsf{director}}$, x.$\textcolor{dkgreen}{\textsf{actor}}$)
+ *   : set (string $\textcolor{dkgreen}{\times}$ string)   *)
+\end{coq}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Idempotent, Commutative Monads}
+\begin{coq}
+Class DataModel (M : Type -> Type) : Type :=
+{ Mret  : forall {T}, T -> M T
+; Mzero : forall {T}, M T
+; Mbind : forall {T U}, M T -> (T -> M U) -> M U
+ (* plus many axioms, including
+     for (x in X)(y in Y) = for (y in Y)(x in X)
+     for (x in X)(x in X) = for (x in X)
+  *)
+}.
+\end{coq}
+\begin{itemize}
+\item Example: Finite sets
+\item \coqe{Mret v} = $\{ v \}$
+\item \coqe{Mzero} = $\{ \}$
+\item \coqe{Mbind m k} = $\bigcup_{x \in m} k(x)$.  Write \coqe{x <- m ; k} for \coqe{Mbind m (fun x => k)}
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Queries and EDs in Coq}
+\begin{coq}
+(* Queries *)
+Definition query {S T: Type}
+  (P : M S) (C : S -> bool) (E : S -> T) : M T :=
+  Mbind P (fun x => Mguard (C x) (Mret (E x))).
+
+(* Embedded Dependencies *)
+Definition embedded_dependency {S S': Type}
+  (F : M S) (Gf : S -> bool) (B : M S') (Gb : S -> S' -> bool)
+:= Meq (query F Gf (fun x => x))
+       (query (Mprod F B)
+              (fun ab => Gf (fst ab) && Gb (fst ab) (snd ab))
+              (fun x => fst x)).
+\end{coq}
+%              
+%\begin{coq}
+%query (Mprod Movies Movies)
+%      (fun ab => (fst ab).$\textsf{title}$ ?= (snd ab).$\textsf{title}$)
+%      (fun ab => ((fst ab).$\textsf{director}$, (snd ab).$\textsf{actor}$))
+%\end{coq}     
+%\begin{coq}
+%Definition title_implies_director : Prop :=
+%  embedded_dependency
+%    (Mprod Movies Movies)
+%    (fun ab => (fst ab).$\textsf{title}$ ?= (snd ab).$\textsf{title}$)
+%    (Mret tt)
+%    (fun ab _ => (fst ab).$\textsf{director}$ ?= (snd ab).$\textsf{director}$).
+%\end{coq}         
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Tactic basics}
+\begin{itemize}
+\item A tactic can examine this Coq code:
+\begin{coq}
+Definition q_LOR : set (string $\times$ string) :=
+  m1 <- Movies ;
+  guard (m1.$\textsf{title}$ ?= ``Lord of the Rings'') ;
+  m2 <- Movies ;
+  guard (m1.$\textsf{title}$ ?= m2.$\textsf{title}$ ) ;
+  return (m1.$\textsf{director}$, m2.$\textsf{actor}$).
+\end{coq}
+\item and normalize it into:
+\begin{coq}
+Definition q_LOR' : set (string $\times$ string) :=
+  m1 <- Movies ;
+  m2 <- Movies ;
+  guard (m1.$\textsf{title}$ ?= ``Lord of the Rings'' && m1.$\textsf{title}$ ?= m2.$\textsf{title}$) ;
+  return (m1.$\textsf{director}$, m2.$\textsf{actor}$).
+\end{coq}
+\item and emit an equality proof using the monad laws.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Tactics, continued}
+\begin{itemize}
+\item A Coq {\it proof goal} is a sequent, $\Gamma \vdash ? : t$, where $\Gamma$ is a context of Coq terms and $t$ is a Coq type.  
+\item A tactic can transform a proof goal into new goals: 
+$$\Gamma \vdash ? : t \longrightarrow \{ \Gamma' \vdash ?' : t' , \ldots, \Gamma'' \vdash ?'' : t'' \}$$  
+\item or solve a proof goal by building a term from the context:
+$$
+\Gamma \vdash ? : t \longrightarrow \Gamma \vdash e : t
+$$
+\item Our proof goals are queries and semantics-preservation proofs, and our transformations are re-write rules.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Tactics, continued}
+\begin{itemize}
+\item Coq's tactics are designed for general-purpose theorem proving.
+\item So, the challenge is to map query optimization onto these tactics.
+\item This requires many structural lemmas, for example
+$$
+(\forall x, Q(x) \cong Q'(x)) \longrightarrow \FOR (x \IN X), Q(x) \cong \FOR (x \IN X), Q'(x)
+$$
+\item and a tactic to exhaustively search for homomorphisms
+\item and tactics to match sub-terms of queries
+\item The payoff is a tactic that operates directly on Coq programs, rather than on a type of syntax for queries. 
+
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Analysis of the tactic-based approach}
+
+\begin{itemize}
+\item Benefits: 
+\begin{itemize}
+\item Supports nested relations simply by proving new lemmas. (Contrast to deep-embedding approach)
+\item Supports arbitrary Coq computation in \WHERE clauses with no effort.
+\item Re-use of existing Coq infrastructure - higher-order unification, and backtracking search are built-in.
+\end{itemize}
+\vspace{.2in}
+\item Drawbacks:
+\begin{itemize}
+\item Tactics are completely untyped, and so are error-prone to develop.
+\item Many similar lemmas had to be proved.
+\item Speed - finding homomorphisms is NP but \ltac{} is nonetheless slow.
+\end{itemize}
+
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Conclusion}
+\begin{itemize}
+\item Part 1:
+\begin{itemize}
+\item Given a relational conjunctive query $Q$ 
+\item and a set of constraints $C$ of the form $\forall \vec{x}. \phi(\vec{x}) \to \exists \vec{y}. \psi(\vec{x},\vec{y})$
+\item we can compute a unique minimal query $Q'$ such that $C \vdash Q \cong Q'$
+\item or diverge 
+\end{itemize}
+\vspace{.1in}
+\item Part 2:
+\begin{itemize}
+\item Given a commutative, idempotent monad with zero in Coq
+\item and a Coq monad comprehension $Q$
+\item and a set of Coq proof objects $C$
+\item our Coq tactic (semi) computes $Q'$ and a proof that $C \vdash Q \cong Q'$
+\end{itemize}
+\vspace{.1in}
+\item Take-away:
+\begin{itemize}
+  \item Coq users can use our tactic to optimize monad comprehensions in a provably correct way.
+\item Our work gives a {\it design pattern} for optimizing Coq code using tactics.
+\item Toward dependently-typed LINQ!
+\end{itemize}
+\end{itemize}
+\end{frame}
+
+
+\frame{
+\frametitle{Thanks to}
+\begin{itemize}
+\vspace{.2in}
+ \item ONR grant N000141310260
+ \vspace{.2in}
+ \item AFOSR grant FA9550-14-1-0031
+ \vspace{.2in}
+\item Lucian Popa 
+\end{itemize}
+}
+
+\end{document}
